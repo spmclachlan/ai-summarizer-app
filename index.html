@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Steve's AI Literature Summariser</title>
-    <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Load Inter font -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
     <style>
         body {
@@ -60,7 +58,6 @@
             <p class="text-gray-500 mt-2">Enter your query to get an AI-powered search, summary, and chat.</p>
         </header>
         
-        <!-- Search Scope Control: UPDATED to include 'Balanced' -->
         <div class="flex flex-col sm:flex-row flex-wrap gap-y-2 gap-x-6 items-center mb-4 p-3 bg-blue-50/50 rounded-lg border border-blue-200">
             <span class="font-medium text-gray-700 whitespace-nowrap">Search Scope:</span>
             
@@ -80,7 +77,6 @@
             </label>
         </div>
 
-        <!-- Search Input -->
         <div class="mb-4">
             <input 
                 type="text" 
@@ -90,7 +86,6 @@
             >
         </div>
         
-        <!-- Search Button -->
         <div class="flex justify-end mb-4">
             <button 
                 id="searchButton"
@@ -100,37 +95,28 @@
             </button>
         </div>
 
-        <!-- Status & Results Area -->
         <div id="statusArea" class="mt-6">
-            <!-- Loading Spinner -->
             <div id="loadingSpinner" class="hidden flex-col items-center justify-center text-center">
                 <div class="spinner"></div>
                 <p id="loadingMessage" class="text-gray-600 mt-3 font-medium">Translating query...</p>
             </div>
             
-            <!-- Error Message -->
             <div id="errorMessage" class="hidden p-4 bg-red-100 border border-red-300 text-red-700 rounded-lg">
-                <!-- Error content will be set by JS -->
-            </div>
+                </div>
 
-            <!-- New Two-Column Layout for Results and Chat -->
             <div id="resultsContainer" class="hidden">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-                    <!-- LEFT PANE: Query, Filters, Summary, Articles (2/3 width on desktop) -->
                     <div class="md:col-span-2 space-y-8">
                         
-                        <!-- Query Sections -->
                         <section id="querySections" class="pb-2 space-y-4 border-b border-gray-200">
                             <div>
                                 <h2 class="text-xl font-semibold text-gray-800">Original Query:</h2>
                                 <p id="originalQueryText" class="text-gray-600 text-lg break-words mt-1 p-2 bg-gray-50 rounded-lg border border-gray-200 shadow-inner"></p>
                             </div>
 
-                            <!-- Toggle Button for Search Strategy -->
                             <button id="togglePubmedQueryButton" class="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center transition-colors">
                                 <span id="pubmedQueryToggleText">Show Optimized Search Strategy</span>
-                                <!-- Down arrow icon (default state) -->
                                 <svg id="pubmedQueryToggleIcon" class="w-4 h-4 ml-1 transition-transform duration-300 transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                             </button>
 
@@ -140,29 +126,25 @@
                             </div>
                         </section>
 
-                        <!-- Filter Panel -->
                         <section id="filterToggle" class="bg-gray-50 p-3 rounded-lg border border-gray-200">
                             <button id="toggleFilterButton" class="w-full text-left font-semibold text-gray-700 hover:text-blue-600 transition-colors flex justify-between items-center">
                                 <span id="filterStatusText">Filter & Sort Articles (0 Applied / 0 Total)</span>
-                                <svg id="filterToggleIcon" class="w-5 h-5 transition-transform duration-300 transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2004/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                <svg id="filterToggleIcon" class="w-5 h-5 transition-transform duration-300 transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                             </button>
                             
                             <div id="filterPanel" class="filter-section">
                                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
                                     
-                                    <!-- Filter 1: Min Year -->
                                     <div class="flex flex-col">
                                         <label for="minYearInput" class="text-sm font-medium text-gray-700 mb-1">Min Year</label>
                                         <input type="number" id="minYearInput" min="1900" max="2025" placeholder="e.g., 2020" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
                                     </div>
                                     
-                                    <!-- Filter 2: Min Citation Count -->
                                     <div class="flex flex-col">
                                         <label for="minCitationCountInput" class="text-sm font-medium text-gray-700 mb-1">Min Citation Count</label>
                                         <input type="number" id="minCitationCountInput" min="0" placeholder="e.g., 10" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
                                     </div>
 
-                                    <!-- Filter 3: Publication Type (Now Multi-Select) -->
                                     <div class="flex flex-col col-span-1 md:col-span-2 lg:col-span-1">
                                         <label for="pubTypeSelect" class="text-sm font-medium text-gray-700 mb-1">Publication Type(s)</label>
                                         <select multiple size="5" id="pubTypeSelect" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white">
@@ -176,7 +158,6 @@
                                         </select>
                                     </div>
                                     
-                                    <!-- Sort By -->
                                     <div class="flex flex-col">
                                         <label for="sortBySelect" class="text-sm font-medium text-gray-700 mb-1">Sort By</label>
                                         <select id="sortBySelect" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white">
@@ -201,15 +182,12 @@
 
 
                         
-                        <!-- Summary Section -->
                         <section id="summarySection">
                             <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-200 pb-2 mb-4">
                                 AI Summary (with Citations)
                             </h2>
                             
-                            <!-- Summary Controls (Depth and Language) -->
                             <div class="flex flex-col sm:flex-row justify-between items-start mb-4 gap-4">
-                                <!-- Summary Depth Controls -->
                                 <div class="flex flex-wrap gap-4 items-center" id="summaryTypeContainer">
                                     <span class="font-medium text-gray-700">Summary Depth:</span>
                                     <label class="flex items-center gap-1 cursor-pointer">
@@ -228,14 +206,12 @@
                                         <input type="radio" name="summaryType" value="technical" class="text-blue-600 focus:ring-blue-500">
                                         Technical/Scientific
                                     </label>
-                                    <!-- NEW STRUCTURED BREAKDOWN OPTION -->
                                     <label class="flex items-center gap-1 cursor-pointer">
                                         <input type="radio" name="summaryType" value="breakdown" class="text-blue-600 focus:ring-blue-500">
                                         Structured Breakdown
                                     </label>
                                 </div>
                                 
-                                <!-- Translation Language Select -->
                                 <div class="flex flex-col gap-1 w-full sm:w-auto mt-4 sm:mt-0">
                                     <label for="languageSelect" class="font-medium text-gray-700 text-sm">Translate To:</label>
                                     <select id="languageSelect" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white">
@@ -258,11 +234,9 @@
                                 </button>
                             </div>
                             
-                            <!-- The summary is rendered here. It needs to handle newlines and markdown. -->
                             <div id="summaryText" class="text-gray-700 leading-relaxed prose max-w-none p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-inner"></div>
                         </section>
                         
-                        <!-- Articles Section -->
                         <section id="articlesSection">
                             <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-200 pb-2 mb-4">
                                 Filtered & Sorted Results (<span id="filteredCount">0</span> articles)
@@ -273,26 +247,21 @@
                                 </span>
                             </div>
                             <ol id="articlesList" class="list-none space-y-4">
-                                <!-- Article items will be injected by JS -->
-                            </ol>
+                                </ol>
                         </section>
 
                     </div>
 
 
-                    <!-- RIGHT PANE: Chat (1/3 width on desktop) -->
                     <div class="md:col-span-1">
                         <section id="chatSection">
                             <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-200 pb-2 mb-4">
                                 Chat with Results
                             </h2>
                             
-                            <!-- Chat History Window -->
                             <div id="chatHistory" class="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4 overflow-y-auto mb-4 shadow-inner">
-                                <!-- Chat messages will be injected here -->
-                            </div>
+                                </div>
                             
-                            <!-- Chat Input -->
                             <div class="flex gap-2">
                                 <input 
                                     type="text" 
@@ -304,7 +273,6 @@
                                     id="chatSendButton"
                                     class="bg-blue-600 text-white font-semibold px-5 py-3 rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center"
                                 >
-                                    <!-- Send Icon -->
                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
                                 </button>
                             </div>
@@ -333,25 +301,10 @@
         const ELINK_URL = `${NCBI_BASE_URL}elink.fcgi?dbfrom=pubmed&db=pubmed&linkname=pubmed_pubmed_citedby&retmode=json`; 
 
         // Gemini API Configuration
-        // --------------------------------------------------------------------------------------------------
-        // !!! CRITICAL DEPLOYMENT NOTE - KEY INSERTED HERE !!!
-        // This is where your personal API key must be placed for the application to work 
-        // on a public website (like GitHub Pages).
-        // WARNING: This key will be PUBLICLY VISIBLE in the page source. 
-        // --------------------------------------------------------------------------------------------------
         const GEMINI_API_KEY = "AIzaSyAJclRSkKNWVcVCuxZZDFnYAF-VqUqYYAM"; 
         const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
         const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
         
-        // --- Initialization Check for Public Deployment ---
-        if (GEMINI_API_KEY === "YOUR_INSERTED_KEY_HERE" || GEMINI_API_KEY === "") {
-             document.addEventListener('DOMContentLoaded', () => {
-                showError("FATAL ERROR: The Gemini API Key is missing. Please edit index.html and insert your key to fix the 'unregistered callers' issue.");
-                document.getElementById('searchButton').disabled = true;
-                document.getElementById('searchButton').classList.add('opacity-50', 'cursor-not-allowed');
-            });
-        }
-
 
         // --- Global State ---
         let originalArticles = []; // Master list of all 100 fetched articles
@@ -514,11 +467,6 @@
          * Main function to handle the search process.
          */
         async function handleSearch() {
-            if (GEMINI_API_KEY === "YOUR_INSERTED_KEY_HERE" || GEMINI_API_KEY === "") {
-                showError("FATAL ERROR: The Gemini API Key is missing. Please edit index.html and insert your key in the 'GEMINI_API_KEY' constant.");
-                return;
-            }
-
             const originalQuery = searchInput.value.trim();
             if (!originalQuery) {
                 showError("Please enter a search term.");
@@ -787,6 +735,7 @@
         /**
          * The new Map-Reduce implementation for summarization.
          * FIX: Ensures that citation IDs are absolute (1 to 15) in the intermediate summaries.
+         * PERFORMANCE FIX: Runs the map step in parallel using Promise.all().
          */
         async function summarizeWithMapReduce(articles, summaryType, originalQuery) {
             if (articles.length === 0) return "No articles were included in the summary generation process.";
@@ -797,11 +746,10 @@
                 chunks.push(articles.slice(i, i + MAP_REDUCE_CHUNK_SIZE));
             }
             
-            setLoading(true, `Step 1/2: Analyzing ${articles.length} articles in ${chunks.length} batches...`);
+            setLoading(true, `Step 1/2: Analyzing ${articles.length} articles in ${chunks.length} batches (running in parallel)...`);
             
-            const intermediateSummaries = [];
-            for (let i = 0; i < chunks.length; i++) {
-                const chunk = chunks[i];
+            // ** PARALLELIZATION FIX: Create an array of promises for concurrent execution **
+            const mapPromises = chunks.map((chunk, i) => {
                 const globalStartIndex = i * MAP_REDUCE_CHUNK_SIZE; // Start index for citation ID calculation
                 
                 // CRUCIAL: Pass globalStartIndex so the LLM knows the absolute citation ID
@@ -811,12 +759,15 @@
                 // The prompt instructs the LLM to use the full [ARTICLE N] label as the citation
                 const mapSystemPrompt = `You are a medical research assistant. Your task is to read the following research articles (labeled [ARTICLE N] where N is the final citation ID 1 through 15) and generate a concise **list of key findings, methodologies, and conclusions** for this small set. **Crucially, you MUST preserve the full citation ID (e.g., [ARTICLE 1] or [ARTICLE 6]) after each finding.** Your output should be a single, detailed, bulleted list. Respond ONLY with the list.`;
                 
-                const intermediateText = await callGeminiApi({
+                // Return the promise for the API call
+                return callGeminiApi({
                     contents: [{ parts: [{ text: textToSummarize }] }],
                     systemInstruction: { parts: [{ text: mapSystemPrompt }] },
                 });
-                intermediateSummaries.push(intermediateText);
-            }
+            });
+
+            // Execute all map calls concurrently. This is the main performance boost.
+            const intermediateSummaries = await Promise.all(mapPromises);
             
             // 2. Reduce Step: Synthesize final summary
             const combinedIntermediateText = intermediateSummaries.join('\n\n--- INTERMEDIATE FINDINGS BREAK ---\n\n');
@@ -974,313 +925,301 @@
                         let fullText = bodyNode.textContent.trim().replace(/\s\s+/g, ' ');
                         const MAX_CHARS = 5000;
                         if (fullText.length > MAX_CHARS) {
-                            // Trim and add ellipsis if too long
-                            fullText = fullText.substring(0, MAX_CHARS - 3) + '...';
+                            fullText = fullText.substring(0, MAX_CHARS) + '... [Full Text Truncated]';
                         }
                         return fullText;
                     }
+                    return null; 
+                } else {
+                    console.warn(`PMC fetch failed for PMCID ${pmcid}: HTTP Status ${response.status}.`);
+                    return null;
                 }
-            } catch (e) {
-                console.error("Error fetching or parsing PMC full text:", e);
-                // Fail silently and return null to proceed with abstract/title only
+            } catch (error) {
+                console.warn(`Network error fetching full text for PMCID ${pmcid}. Error: ${error.message}`);
+                return null;
             }
-            return null;
+        }
+        
+        async function fetchCitationCounts(pmids) {
+            if (pmids.length === 0) return {};
+            const pmidString = pmids.join(',');
+            const url = `${ELINK_URL}&id=${pmidString}`;
+            try {
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("eLink failed to fetch citation counts.");
+                const data = await response.json();
+                const counts = {};
+                
+                data.linksets?.forEach(linkset => {
+                    const pmid = linkset.ids?.[0]; 
+                    if (pmid) {
+                        const citedByLink = linkset.linksetdbs?.find(db => db.linkname === 'pubmed_pubmed_citedby');
+                        const count = citedByLink?.links?.length || 0;
+                        counts[pmid] = count;
+                    }
+                });
+                return counts;
+            } catch (error) {
+                console.error("Error fetching citation counts via eLink:", error.message);
+                return pmids.reduce((acc, pmid) => ({ ...acc, [pmid]: 0 }), {});
+            }
+        }
+
+
+        function parsePubMedXML(xmlText) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlText, "application/xml");
+            const articles = [];
+            const articleNodes = xmlDoc.getElementsByTagName('PubmedArticle');
+            for (const node of articleNodes) {
+                const pmidNode = node.querySelector('PMID');
+                const titleNode = node.querySelector('ArticleTitle');
+                const abstractNodes = node.querySelectorAll('AbstractText');
+                let year = new Date().getFullYear();
+                const pubDateNode = node.querySelector('PubDate Year');
+                if (pubDateNode) year = parseInt(pubDateNode.textContent);
+                const pubTypeNodes = node.querySelectorAll('PublicationType');
+                let pubType = 'Journal Article';
+                if (pubTypeNodes.length > 0) {
+                     pubType = Array.from(pubTypeNodes).map(n => n.textContent).join(', ');
+                }
+                
+                let pmcId = null;
+                const articleIdList = node.querySelector('ArticleIdList');
+                if (articleIdList) {
+                    const pmcIdNode = Array.from(articleIdList.querySelectorAll('ArticleId'))
+                        .find(id => id.getAttribute('IdType') === 'pmc');
+                    if (pmcIdNode) pmcId = pmcIdNode.textContent.replace('PMC', ''); 
+                }
+                let abstract = Array.from(abstractNodes).map(n => n.textContent).join(' ') || 'No abstract available';
+                articles.push({
+                    pmid: pmidNode ? pmidNode.textContent : 'Unknown',
+                    title: titleNode ? titleNode.textContent : 'No title available',
+                    abstract: abstract,
+                    pmcid: pmcId, 
+                    fullText: null, 
+                    year: year,
+                    publicationType: pubType,
+                    citationCount: 0 
+                });
+            }
+            return articles;
         }
 
         async function fetchArticleDetails(pmids) {
-            if (pmids.length === 0) return [];
-
             const pmidString = pmids.join(',');
             const url = `${EFETCH_URL}&id=${pmidString}`;
-            const citationUrls = pmids.map(pmid => `${ELINK_URL}&id=${pmid}`);
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`PubMed fetch failed with status ${response.status}`);
+            const xmlText = await response.text();
+            
+            let articles = parsePubMedXML(xmlText);
+            
+            const citationCounts = await fetchCitationCounts(pmids);
 
-            const xmlResponse = await fetch(url);
-            if (!xmlResponse.ok) throw new Error(`PubMed fetch details failed with status ${xmlResponse.status}`);
-            const xmlText = await xmlResponse.text();
-            
-            // Fetch all citation counts concurrently
-            const citationPromises = citationUrls.map(u => 
-                fetch(u).then(res => res.json()).catch(err => {
-                    console.error("Citation fetch failed:", err);
-                    return { elinkresult: [{ linksetdb: [] }] }; // Return structure to avoid crashing
-                })
-            );
-            const citationResults = await Promise.all(citationPromises);
-            
-            // XML Parsing
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(xmlText, "application/xml");
-            const articles = xmlDoc.querySelectorAll('PubmedArticle');
-            
-            const detailedArticles = [];
-            
-            for (let i = 0; i < articles.length; i++) {
-                const articleNode = articles[i];
-                const pmid = articleNode.querySelector('PMID')?.textContent || pmids[i];
-                const title = articleNode.querySelector('ArticleTitle')?.textContent || 'No Title Available';
-                
-                // Abstract
-                let abstract = '';
-                const abstractTexts = articleNode.querySelectorAll('AbstractText');
-                if (abstractTexts.length > 0) {
-                    abstract = Array.from(abstractTexts).map(a => {
-                        const label = a.getAttribute('Label');
-                        return label ? `**${label}:** ${a.textContent}` : a.textContent;
-                    }).join('\n\n');
+            const fullTextFetches = articles.map(async (article) => {
+                article.citationCount = citationCounts[article.pmid] || 0; 
+                if (article.pmcid) {
+                    article.fullText = await fetchFullText(article.pmcid);
                 }
+                return article;
+            });
+            articles = await Promise.all(fullTextFetches);
+            return articles;
+        }
+
+
+        // --- UI & Chat Helper Functions ---
+        
+        function displayResults(originalQuery, pubmedQuery, summary, currentFilteredArticles, activeFilters = 0) {
+            originalQueryText.textContent = originalQuery; 
+            translatedQueryText.textContent = pubmedQuery; 
+            
+            // Use the new function to format and render the summary
+            summaryText.innerHTML = formatSummaryOutput(summary); 
+            
+            let activeFilterText = activeFilters > 0 ? `${activeFilters} Applied` : '0 Applied';
+            filterStatusText.textContent = `Filter & Sort Articles (${activeFilterText} / ${originalArticles.length} Total)`;
+            filteredCountSpan.textContent = currentFilteredArticles.length;
+
+            displayArticlesList(currentFilteredArticles);
+
+            resultsContainer.classList.remove('hidden');
+
+            // Reset and show chat
+            resetChat(summary, includedArticlesForSummary);
+        }
+
+        function displayArticlesList(currentFilteredArticles) {
+            articlesList.innerHTML = '';
+            
+            currentFilteredArticles.forEach((article, index) => {
+                const isIncluded = includedArticlesForSummary.some(a => a.pmid === article.pmid);
+
+                const li = document.createElement('li');
+                // Use a different style for articles not included in the summary
+                li.className = `text-gray-700 flex items-start gap-2 p-2 rounded-lg transition-all ${isIncluded && index < SUMMARY_LIMIT ? 'bg-blue-50/50 border border-blue-100' : 'bg-white'}`;
                 
-                // Publication Year
-                let year = 0;
-                const dateNode = articleNode.querySelector('PubDate Year, ArticleDate Year, JournalIssue PubDate Year');
-                if (dateNode) {
-                    year = parseInt(dateNode.textContent);
+                let citationPrefix = '';
+                const listItemNumber = index + 1; // 1-based index for display
+
+                // Checkbox and Citation Number for the top 15 results
+                if (index < SUMMARY_LIMIT) {
+                    
+                    // 1. Checkbox for Exclusion
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.checked = !isIncluded; // Checked means EXCLUDED
+                    checkbox.className = 'mt-1 w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 cursor-pointer exclusion-checkbox';
+                    checkbox.setAttribute('data-pmid', article.pmid);
+                    checkbox.addEventListener('change', handleExclusionToggle);
+                    
+                    // 2. Citation Number
+                    const citationSpan = document.createElement('span');
+                    citationSpan.className = `font-bold mr-1 w-6 text-center shrink-0 ${isIncluded ? 'text-blue-600' : 'text-gray-400'}`;
+                    citationSpan.textContent = `[${listItemNumber}]`;
+                    
+                    li.appendChild(checkbox);
+                    li.appendChild(citationSpan);
+
+                    citationPrefix = ''; // Citation prefix is now inside the citationSpan
                 } else {
-                    // Fallback for missing year (e.g., from MedlineDate)
-                    const medlineDate = articleNode.querySelector('MedlineDate')?.textContent;
-                    if (medlineDate) {
-                        const yearMatch = medlineDate.match(/\d{4}/);
-                        if (yearMatch) year = parseInt(yearMatch[0]);
-                    }
+                    // Placeholder for alignment for articles beyond the top 15
+                    li.innerHTML = `<span class="w-10 shrink-0"></span>`; 
                 }
 
-                // Citation Count
-                let citationCount = 0;
-                const citationData = citationResults[i];
-                if (citationData.elinkresult?.[0]?.linksetdb?.[0]?.link) {
-                    citationCount = citationData.elinkresult[0].linksetdb[0].link.length;
-                }
-                
-                // Publication Type (e.g., Review, Clinical Trial)
-                const pubTypes = Array.from(articleNode.querySelectorAll('PublicationType')).map(pt => pt.textContent);
-                
-                // PMC ID (for full text retrieval)
-                const pmcNode = articleNode.querySelector('ArticleId[IdType="pmc"]');
-                const pmcid = pmcNode ? pmcNode.textContent.replace('PMC', '') : null;
-                
-                // Start with a basic object
-                let article = {
-                    pmid,
-                    pmcid,
-                    title,
-                    abstract,
-                    year,
-                    citationCount,
-                    publicationType: pubTypes,
-                    fullText: null,
-                    relevanceIndex: i + 1, // Store initial relevance rank
-                };
-                
-                // Attempt to fetch full text if PMC ID is available (non-blocking)
-                if (pmcid) {
-                    const fullText = await fetchFullText(pmcid);
-                    article.fullText = fullText;
-                }
+                // 3. Article Content (Title, Link, Meta)
+                const contentDiv = document.createElement('div');
+                contentDiv.className = "flex flex-col flex-grow";
 
-                detailedArticles.push(article);
-            }
+                const link = document.createElement('a');
+                link.href = `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`;
+                link.textContent = article.title;
+                link.target = "_blank";
+                link.rel = "noopener noreferrer"; 
+                link.className = "text-blue-600 hover:underline font-medium";
+                
+                const metaText = document.createElement('span');
+                let metaContent = `Citations: ${article.citationCount}, Year: ${article.year}`;
+                if (article.fullText) {
+                    metaContent += ' (Full Text Used)';
+                    metaText.className = "text-xs font-semibold text-green-600";
+                } else {
+                    metaContent += ' (Abstract Only)';
+                    metaText.className = "text-xs text-gray-500";
+                }
+                metaText.textContent = metaContent;
 
-            return detailedArticles;
+                contentDiv.appendChild(link);
+                contentDiv.appendChild(metaText);
+                li.appendChild(contentDiv);
+
+                articlesList.appendChild(li);
+            });
         }
         
-        // --- UI Display & Helper Functions (Unchanged) ---
+        function resetChat(summary, articles) {
+            chatHistory = []; 
+            
+            // Context now uses the absolute citation ID (1-based index)
+            currentChatContext = `Summary:\n${summary}\n\nSummarized Articles:\n` +
+                articles.map((article, index) => {
+                    const citationID = index + 1;
+                    return `[ARTICLE ${citationID}] (PMID: ${article.pmid}, Citations: ${article.citationCount}): ${article.title}\nAbstract/Text: ${article.fullText || article.abstract}`;
+                }).join('\n\n');
 
-        /**
-         * Generic function to show loading state.
-         */
-        function setLoading(isLoading, message = 'Loading...') {
-            loadingSpinner.classList.toggle('hidden', !isLoading);
-            searchButton.disabled = isLoading;
-            searchButton.classList.toggle('opacity-50', isLoading);
-            loadingMessage.textContent = message;
-
-            regenerateSummaryButton.disabled = isLoading;
-            regenerateSummaryButton.classList.toggle('opacity-50', isLoading);
-            applyFiltersButton.disabled = isLoading;
-            applyFiltersButton.classList.toggle('opacity-50', isLoading);
+            chatHistoryUI.innerHTML = `
+                <div class="text-gray-500 italic p-2 text-center border-b pb-4">
+                    Context updated. You can now ask questions about the ${articles.length} articles used in the summary above.
+                </div>`;
         }
 
-        /**
-         * Generic function to display errors.
-         */
+        async function handleChatSend() {
+            const prompt = chatInput.value.trim();
+            if (!prompt) return;
+
+            chatInput.value = '';
+            displayChatMessage(prompt, 'user');
+            chatHistory.push({ role: 'user', parts: [{ text: prompt }] });
+
+            chatSpinner.classList.remove('hidden');
+            chatSendButton.disabled = true;
+            chatInput.disabled = true;
+
+            try {
+                const response = await chatWithLLM(chatHistory, currentChatContext);
+                displayChatMessage(response, 'model');
+                chatHistory.push({ role: 'model', parts: [{ text: response }] });
+            } catch (error) {
+                console.error("Chat error:", error);
+                displayChatMessage(`Error: ${error.message}`, 'model', true);
+            } finally {
+                chatSpinner.classList.add('hidden');
+                chatSendButton.disabled = false;
+                chatInput.disabled = false;
+                chatInput.focus();
+            }
+        }
+        
+        function displayChatMessage(message, role, isError = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'p-3 rounded-lg';
+            
+            if (role === 'user') {
+                messageDiv.className += ' bg-gray-100 self-end';
+                messageDiv.textContent = message;
+            } else { // 'model'
+                messageDiv.className += ' bg-blue-50 self-start';
+                if (isError) {
+                    messageDiv.className = 'bg-red-100 text-red-700 p-3 rounded-lg';
+                }
+                // Poor man's markdown for bolding (e.g., [1])
+                message = message.replace(/\[(\d+)\]/g, '<strong>[$1]</strong>');
+                messageDiv.innerHTML = message.replace(/\n/g, '<br>');
+            }
+            
+            chatHistoryUI.appendChild(messageDiv);
+            chatHistoryUI.scrollTop = chatHistoryUI.scrollHeight; // Auto-scroll
+        }
+        
+        function setLoading(isLoading, message = "Processing...") {
+            const buttonsToDisable = [searchButton, applyFiltersButton, regenerateSummaryButton];
+            if (isLoading) {
+                loadingMessage.textContent = message;
+                loadingSpinner.classList.remove('hidden');
+                loadingSpinner.classList.add('flex');
+                buttonsToDisable.forEach(button => {
+                    button.disabled = true;
+                    button.classList.add('opacity-50', 'cursor-not-allowed');
+                });
+            } else {
+                loadingSpinner.classList.add('hidden');
+                loadingSpinner.classList.remove('flex');
+                buttonsToDisable.forEach(button => {
+                    button.disabled = false;
+                    button.classList.remove('opacity-50', 'cursor-not-allowed');
+                });
+                // Special case: applyFiltersButton should remain disabled if no articles
+                if (originalArticles.length === 0) {
+                    applyFiltersButton.disabled = true;
+                    applyFiltersButton.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                // Special case: regenerateSummaryButton should remain disabled if no summary
+                if (includedArticlesForSummary.length === 0) {
+                    regenerateSummaryButton.disabled = true;
+                    regenerateSummaryButton.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            }
+        }
+
         function showError(message) {
             errorMessage.textContent = message;
             errorMessage.classList.remove('hidden');
         }
 
-        /**
-         * Generic function to hide errors.
-         */
         function hideError() {
             errorMessage.classList.add('hidden');
         }
-
-        /**
-         * Renders the main results area (summary and articles).
-         */
-        function displayResults(originalQuery, pubmedQuery, summary, currentFilteredArticles, activeFilters) {
-            resultsContainer.classList.remove('hidden');
-            
-            // 1. Update Query Info
-            originalQueryText.textContent = originalQuery;
-            translatedQueryText.textContent = pubmedQuery;
-
-            // 2. Update Filter Status Text
-            filterStatusText.textContent = `Filter & Sort Articles (${activeFilters} Applied / ${originalArticles.length} Total)`;
-
-            // 3. Update Summary
-            summaryText.innerHTML = formatSummaryOutput(summary);
-
-            // 4. Update Article List and Filters
-            displayArticlesList(currentFilteredArticles);
-
-            // 5. Reset Chat Context
-            resetChatContext(summary, currentFilteredArticles);
-        }
-
-        /**
-         * Renders the list of filtered and sorted articles.
-         */
-        function displayArticlesList(articles) {
-            articlesList.innerHTML = '';
-            filteredCountSpan.textContent = articles.length;
-
-            const includedPmids = new Set(includedArticlesForSummary.map(a => a.pmid));
-            
-            articles.forEach((article, index) => {
-                const isIncludedInSummary = includedPmids.has(article.pmid);
-                const citationNumber = includedArticlesForSummary.findIndex(a => a.pmid === article.pmid) + 1;
-                
-                // Show the citation number [1], [2], etc., only if it was selected for the summary (top 15)
-                const citationBadge = citationNumber > 0 && index < SUMMARY_LIMIT
-                    ? `<span class="inline-block bg-blue-500 text-white text-xs font-bold px-2 py-0.5 rounded-full mr-2">${citationNumber}</span>`
-                    : '';
-                    
-                const pubTypeDisplay = article.publicationType.length > 0 ? 
-                    article.publicationType.map(type => `<span class="text-xs font-medium bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">${type}</span>`).join(' ')
-                    : '';
-
-                const listItem = document.createElement('li');
-                listItem.className = 'p-4 border border-gray-200 rounded-lg shadow-sm bg-white hover:shadow-md transition-shadow duration-150';
-                listItem.innerHTML = `
-                    <div class="flex items-start justify-between">
-                        <div class="flex-1 min-w-0">
-                            <h3 class="text-lg font-semibold text-gray-800 leading-snug">
-                                ${citationBadge} ${article.title}
-                            </h3>
-                            <div class="text-sm text-gray-500 mt-1 space-x-3 flex items-center">
-                                <span title="Publication Year"><svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>${article.year}</span>
-                                <span title="Citations"><svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h10m-9 4h4M5 19l2-2m-2 2l-2-2m4 0l-2 2"></path></svg>${article.citationCount.toLocaleString()} Citations</span>
-                            </div>
-                            <div class="text-sm mt-2">${pubTypeDisplay}</div>
-                        </div>
-                        
-                        <!-- Exclusion Checkbox (Only for the first 15 candidates) -->
-                        ${index < SUMMARY_LIMIT ? `
-                            <div class="ml-4 flex flex-col items-center justify-start pt-1">
-                                <label class="text-center cursor-pointer text-xs font-semibold text-red-600">
-                                    <input type="checkbox" data-pmid="${article.pmid}" class="h-5 w-5 rounded exclusion-checkbox" ${isIncludedInSummary ? '' : 'checked'} />
-                                    <span class="mt-1 block">Exclude</span>
-                                </label>
-                            </div>
-                        ` : ''}
-
-                    </div>
-                    <p class="text-sm text-gray-600 mt-3 italic">${article.abstract.substring(0, 200)}...</p>
-                    <a href="https://pubmed.ncbi.nlm.nih.gov/${article.pmid}" target="_blank" class="text-blue-600 text-sm font-medium hover:text-blue-800 mt-2 inline-block">View on PubMed &rarr;</a>
-                `;
-                articlesList.appendChild(listItem);
-                
-                // Add listener to the dynamically created checkbox if it exists
-                const checkbox = listItem.querySelector('input[type="checkbox"]');
-                if (checkbox) {
-                    checkbox.addEventListener('change', handleExclusionToggle);
-                }
-            });
-        }
-
-        /**
-         * Resets and prepares the chat history and context.
-         */
-        function resetChatContext(summary, currentFilteredArticles) {
-            chatHistory = []; // Clear chat history
-            chatHistoryUI.innerHTML = `
-                <div class="text-sm text-gray-500 italic">
-                    The conversation starts here. Ask about the results!
-                </div>
-            `;
-            chatInput.value = '';
-            
-            // Generate new context string
-            const articleContext = includedArticlesForSummary.map((a, index) => {
-                const citationID = index + 1;
-                const abstract = a.fullText ? a.fullText : a.abstract;
-                return `[Article ${citationID}] (PMID: ${a.pmid}, Year: ${a.year}): ${a.title}. Abstract/Full Text: ${abstract}`;
-            }).join('\n---\n');
-
-            currentChatContext = `
-                RESEARCH SUMMARY: ${summary}
-                
-                --- SOURCE ARTICLES (Only trust these for facts) ---
-                ${articleContext}
-            `;
-        }
-
-        /**
-         * Handles the chat button click/enter key press.
-         */
-        async function handleChatSend() {
-            const userText = chatInput.value.trim();
-            if (!userText) return;
-            
-            // 1. Display user message
-            displayChatMessage('user', userText);
-            chatInput.value = '';
-            chatSpinner.classList.remove('hidden');
-
-            // 2. Add user message to history
-            chatHistory.push({ role: "user", parts: [{ text: userText }] });
-
-            try {
-                // 3. Call LLM with context and history
-                const llmResponse = await chatWithLLM(chatHistory, currentChatContext);
-
-                // 4. Display AI response
-                displayChatMessage('model', llmResponse);
-
-                // 5. Add AI response to history
-                chatHistory.push({ role: "model", parts: [{ text: llmResponse }] });
-            } catch (error) {
-                console.error("Chat error:", error);
-                displayChatMessage('model', "Sorry, I encountered an error trying to process your request. Please check the console for details.");
-            } finally {
-                chatSpinner.classList.add('hidden');
-                chatHistoryUI.scrollTop = chatHistoryUI.scrollHeight; // Scroll to bottom
-            }
-        }
-
-        /**
-         * Renders a single message into the chat UI.
-         */
-        function displayChatMessage(role, text) {
-            const messageElement = document.createElement('div');
-            messageElement.className = `p-3 rounded-xl max-w-[90%] break-words shadow-md ${
-                role === 'user' 
-                ? 'bg-blue-100 text-gray-800 ml-auto' 
-                : 'bg-white text-gray-700 mr-auto border border-gray-200'
-            }`;
-            // Use innerHTML to allow markdown from AI responses to render (like bold)
-            messageElement.innerHTML = text.replace(/\n/g, '<br>'); 
-            chatHistoryUI.appendChild(messageElement);
-        }
-        
-        // Initial setup on load (hides results until a search is run)
-        document.addEventListener('DOMContentLoaded', () => {
-            resultsContainer.classList.add('hidden');
-            // Check if the fatal error message is already being shown
-            if (document.getElementById('errorMessage').classList.contains('hidden')) {
-                 setLoading(false);
-            }
-        });
 
     </script>
 </body>
