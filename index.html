@@ -295,7 +295,7 @@
         const ESEARCH_LIMIT = 100; 
         const MAP_REDUCE_CHUNK_SIZE = 5; // New constant for iterative summarization
 
-        const ESEARCH_URL = `${NCBI_BASE_URL}esearch.fcgi?db=pubmed&retmode=json&retmax=${ESEARCH_LIMIT}`;
+        const ESEARCH_URL = `${NCBI_BASE_URL}esearch.fcgi?db=pubmed&retmode=json&retmax=${ESEARCH_LIMIT}&sort=relevance`;
         const EFETCH_URL = `${NCBI_BASE_URL}efetch.fcgi?db=pubmed&retmode=xml`;
         const PMC_EFETCH_URL = `${NCBI_BASE_URL}efetch.fcgi?db=pmc&retmode=xml&id=`; 
         const ELINK_URL = `${NCBI_BASE_URL}elink.fcgi?dbfrom=pubmed&db=pubmed&linkname=pubmed_pubmed_citedby&retmode=json`; 
