@@ -302,7 +302,7 @@
         const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
         const SUMMARY_LIMIT = 15; 
         const ESEARCH_LIMIT = 100; 
-        const MAP_REDUCE_CHUNK_SIZE = 5; // New constant for iterative summarization
+        const MAP_REDUCE_CHUNK_SIZE = 3; // New constant for iterative summarization
 
         // ADDED &sort=relevance parameter to ensure the initial API call uses the best relevance match
         const ESEARCH_URL = `${NCBI_BASE_URL}esearch.fcgi?db=pubmed&retmode=json&retmax=${ESEARCH_LIMIT}&sort=relevance`;
