@@ -285,33 +285,23 @@
                     </div>
 
                 </div>
-
-                <div class="mt-8 pt-4 border-t border-gray-200 flex justify-end">
-                    <button 
-                        id="shareButton"
-                        class="bg-purple-600 text-white font-semibold px-6 py-3 rounded-lg shadow-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-all duration-200 flex items-center gap-2"
-                    >
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.516 3.012A4.204 4.204 0 0017 14c.732 0 1.438-.17 2.07-.478V16a2 2 0 01-2 2H5a2 2 0 01-2-2V4a2 2 0 012-2h12a2 2 0 012 2v2.478a4.204 4.204 0 00-2.07-.478c-.732 0-1.438.17-2.07.478L8.684 10.658m0 2.684L2.07 10.99A4.204 4.204 0 012 12c0 .732.17 1.438.478 2.07L8.684 13.342z"></path></svg>
-                        Share Current Search
-                    </button>
-                </div>
             </div>
         </div>
-<script type="module">
+
+    <script type="module">
         // --- API & Limit Configuration ---
         const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
-        const SUMMARY_LIMIT = 15; 
+        const SUMMARY_LIMIT = 20; 
         const ESEARCH_LIMIT = 100; 
         const MAP_REDUCE_CHUNK_SIZE = 5; // New constant for iterative summarization
 
-        // ADDED &sort=relevance parameter to ensure the initial API call uses the best relevance match
         const ESEARCH_URL = `${NCBI_BASE_URL}esearch.fcgi?db=pubmed&retmode=json&retmax=${ESEARCH_LIMIT}&sort=relevance`;
         const EFETCH_URL = `${NCBI_BASE_URL}efetch.fcgi?db=pubmed&retmode=xml`;
         const PMC_EFETCH_URL = `${NCBI_BASE_URL}efetch.fcgi?db=pmc&retmode=xml&id=`; 
         const ELINK_URL = `${NCBI_BASE_URL}elink.fcgi?dbfrom=pubmed&db=pubmed&linkname=pubmed_pubmed_citedby&retmode=json`; 
 
         // Gemini API Configuration
-        const GEMINI_API_KEY = "AIzaSyAJclRSkKNWVcVCuxZZDFnYAF-VqUqYYAM";
+        const GEMINI_API_KEY = "AIzaSyAJclRSkKNWVcVCuxZZDFnYAF-VqUqYYAM"; 
         const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
         const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
         
@@ -368,9 +358,6 @@
         const chatSendButton = document.getElementById('chatSendButton');
         const chatSpinner = document.getElementById('chatSpinner');
 
-        // Share button - NEW
-        const shareButton = document.getElementById('shareButton');
-
         
         // --- Event Listeners ---
         searchButton.addEventListener('click', handleSearch);
@@ -392,9 +379,8 @@
         // Ensure handleRegenerateSummary is called with 'false' (do not force summarize, just translate if needed) on language change
         languageSelect.addEventListener('change', () => handleRegenerateSummary(false)); 
 
-        // Share button event listener - NEW
-        shareButton.addEventListener('click', generateShareableLink);
-/**
+
+        /**
          * Toggles the PubMed query section visibility.
          */
         function handleTogglePubmedQuery() {
@@ -416,7 +402,7 @@
         /**
          * Handles the click on an article exclusion checkbox.
          */
-        let currentHandleExclusionToggle = async function(event) {
+        function handleExclusionToggle(event) {
             const pmid = event.target.getAttribute('data-pmid');
             const isExcluded = event.target.checked; 
 
@@ -427,7 +413,7 @@
             } else {
                 // Find the article in the full filtered list and re-add it (only if not already there and within top 15 candidates)
                 const articleToAdd = filteredArticles.find(article => article.pmid === pmid);
-                if (articleToAdd) { 
+                if (articleToAdd) { // No need to check length, we just re-add it if it was in the top 15 candidates
                     includedArticlesForSummary.push(articleToAdd);
                 }
             }
@@ -443,11 +429,8 @@
             displayArticlesList(filteredArticles);
 
             // Trigger regeneration of the summary with the new set of included articles
-            await handleRegenerateSummary(true);
-        };
-        // Assign the handler to the global scope or directly to elements
-        // (This allows for temporary override during URL loading)
-        
+            handleRegenerateSummary(true);
+        }
 
         /**
          * The main function for regenerating/translating the summary.
@@ -537,251 +520,468 @@
 
                 setLoading(true, `Fetching full texts, abstracts, and citation counts for ${pmids.length} articles...`);
 
-                // Step 2b: Fetch article details from PubMed
-                originalArticles = await fetchArticleDetails(pmids);
-                
-                // Step 2c: Fetch citation counts for all original articles
-                await fetchCitationCounts(originalArticles); 
-
-                // Step 3: Apply filters and sort to get the initial filteredArticles
-                filteredArticles = applyFiltersAndSort(originalArticles);
-                
-                // Initialize includedArticlesForSummary with the top SUMMARY_LIMIT from filteredArticles
-                includedArticlesForSummary = filteredArticles.slice(0, SUMMARY_LIMIT);
-
-                setLoading(true, `Generating initial summary for the top ${includedArticlesForSummary.length} articles...`);
-
-                // Step 4: Summarize the top N articles
-                const summaryType = document.querySelector('input[name="summaryType"]:checked').value;
-                const summary = await summarizeWithMapReduce(includedArticlesForSummary, summaryType, originalQuery);
-                lastEnglishSummary = summary; // Store the English summary
-
-                // Step 5: Display results
-                displayResults(originalQuery, pubmedQuery, summary, filteredArticles, getActiveFilterCount());
-                
-            } catch (error) {
-                console.error("Search failed:", error);
-                showError("An error occurred during the search. Please try again.");
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        /**
-         * Handles the application of filters and re-summarization.
-         */
-        async function handleFilterApply() {
-            setLoading(true, "Applying filters and re-summarizing...");
-            hideError();
-
-            try {
-                // Re-apply filters and sort to the original (full) set of fetched articles
-                filteredArticles = applyFiltersAndSort(originalArticles);
-
-                // Update includedArticlesForSummary based on the new filtered list (take top SUMMARY_LIMIT)
-                includedArticlesForSummary = filteredArticles.slice(0, SUMMARY_LIMIT);
-
-                if (includedArticlesForSummary.length === 0) {
-                    showError("No articles match the current filter criteria. Please adjust your filters.");
-                    displayResults(currentOriginalQuery, currentPubmedQuery, "No articles found matching filters.", filteredArticles, getActiveFilterCount());
+                // Step 3: Fetch article details
+                const articles = await fetchArticleDetails(pmids);
+                if (!articles || articles.length === 0) {
+                    showError("Could not fetch article details.");
                     setLoading(false);
                     return;
                 }
+
+                originalArticles = articles;
                 
-                setLoading(true, `Generating summary for the top ${includedArticlesForSummary.length} filtered articles...`);
-
-                // Regenerate summary with the new set of included articles
-                const summaryType = document.querySelector('input[name="summaryType"]:checked').value;
-                const summary = await summarizeWithMapReduce(includedArticlesForSummary, summaryType, currentOriginalQuery);
-                lastEnglishSummary = summary; // Store the English summary
-
-                // Display updated results
-                displayResults(currentOriginalQuery, currentPubmedQuery, summary, filteredArticles, getActiveFilterCount());
+                // Step 4: Apply filters (initially with default/no filters) and summarize
+                await handleFilterApply(); 
 
             } catch (error) {
-                console.error("Filter application failed:", error);
-                showError("An error occurred while applying filters. Please try again.");
+                console.error("Search failed:", error);
+                showError(`An error occurred: ${error.message}`);
             } finally {
                 setLoading(false);
             }
         }
 
         /**
-         * Handles sending a chat message.
+         * Calculates the number of currently active filters.
          */
-        async function handleChatSend() {
-            const userMessage = chatInput.value.trim();
-            if (!userMessage) return;
+        function getActiveFilterCount() {
+            const minYear = parseInt(minYearInput.value) || 0;
+            const minCitations = parseInt(minCitationCountInput.value) || 0; 
+            
+            const selectedPubTypes = Array.from(pubTypeSelect.options)
+                .filter(option => option.selected && option.value !== 'All')
+                .map(option => option.value);
 
-            addChatMessage('user', userMessage);
-            chatInput.value = '';
-            chatSpinner.classList.remove('hidden');
+            let activeFilters = 0;
+            if (minYear > 0) activeFilters++;
+            if (minCitations > 0) activeFilters++; 
+            if (selectedPubTypes.length > 0) activeFilters++;
+            return activeFilters;
+        }
 
-            try {
-                // Concatenate current chat history and relevant articles for context
-                const chatHistoryContext = chatHistory.map(msg => `${msg.role}: ${msg.text}`).join('\n');
-                const articleContext = includedArticlesForSummary.map(article => 
-                    `PMID: ${article.pmid}\nTitle: ${article.title}\nAbstract: ${article.abstract}\nFull Text Used: ${!!article.fullText}`
-                ).join('\n\n');
 
-                const fullContext = `
-                    You are an AI assistant designed to answer questions based on a provided list of scientific articles.
-                    The user has performed a search with the original query: "${currentOriginalQuery}".
-                    The following articles are currently INCLUDED in the summary context:
-                    ${articleContext}
-
-                    Chat history so far:
-                    ${chatHistoryContext}
-
-                    User's new question: ${userMessage}
-
-                    Please answer the user's question concisely, citing relevant PMIDs from the provided articles.
-                    If the answer is not available in the provided articles, state that you cannot answer based on the given information.
-                    Do not make up information.
-                `;
-
-                const response = await callGeminiAPI([{ role: 'user', parts: [{text: fullContext}]}]);
-                addChatMessage('model', response);
-                chatHistory.push({ role: 'user', text: userMessage });
-                chatHistory.push({ role: 'model', text: response });
-
-            } catch (error) {
-                console.error("Chat failed:", error);
-                addChatMessage('model', "Sorry, I couldn't process that question right now. Please try again.");
-            } finally {
-                chatSpinner.classList.add('hidden');
+        /**
+         * Applies filters AND sorting to the original article set, then summarizes and potentially translates.
+         */
+        async function handleFilterApply() {
+            if (originalArticles.length === 0) {
+                return; // Nothing to filter
             }
+
+            setLoading(true, "Applying filters, sorting, and generating summary...");
+            hideError();
+
+            const minYear = parseInt(minYearInput.value) || 0;
+            const minCitations = parseInt(minCitationCountInput.value) || 0; 
+            const sortBy = sortBySelect.value; 
+            
+            const selectedPubTypes = Array.from(pubTypeSelect.options)
+                .filter(option => option.selected && option.value !== 'All')
+                .map(option => option.value);
+
+            const requiredPubTypes = selectedPubTypes.length > 0 ? selectedPubTypes : ['All'];
+
+            const activeFilters = getActiveFilterCount();
+
+            // 1. Apply Filtering Logic
+            let currentFilteredArticles = originalArticles.filter(article => {
+                const yearMatch = article.year >= minYear;
+                const citationMatch = article.citationCount >= minCitations; 
+                const pubTypeMatch = requiredPubTypes.includes('All') || requiredPubTypes.some(reqType => article.publicationType.includes(reqType));
+                
+                return yearMatch && citationMatch && pubTypeMatch;
+            });
+            
+            // 2. Apply Sorting Logic
+            switch(sortBy) {
+                case 'year-desc':
+                    currentFilteredArticles.sort((a, b) => b.year - a.year);
+                    break;
+                case 'year-asc':
+                    currentFilteredArticles.sort((a, b) => a.year - b.year);
+                    break;
+                case 'citations-desc': 
+                    currentFilteredArticles.sort((a, b) => b.citationCount - a.citationCount);
+                    break;
+                case 'citations-asc': 
+                    currentFilteredArticles.sort((a, b) => a.citationCount - b.citationCount);
+                    break;
+                case 'relevance':
+                default:
+                    // Use initial PubMed relevance (already implicit)
+                    break; 
+            }
+            
+            filteredArticles = currentFilteredArticles; // Update global filtered list
+
+            // Handle no results after filtering
+            if (filteredArticles.length === 0) {
+                showError("No articles remain after applying these filters.");
+                setLoading(false);
+                includedArticlesForSummary = [];
+                displayResults(currentOriginalQuery, currentPubmedQuery, "No articles matched the current filter criteria.", filteredArticles, activeFilters);
+                return;
+            }
+
+            // 3. Select the NEW top articles for summarization
+            includedArticlesForSummary = filteredArticles.slice(0, SUMMARY_LIMIT);
+
+            // 4. Summarize and display
+            await generateAndDisplaySummary(filteredArticles, activeFilters);
+        }
+
+        async function generateAndDisplaySummary(currentFilteredArticles, activeFilters) {
+            
+            const articlesToSummarize = includedArticlesForSummary;
+
+            if (articlesToSummarize.length === 0) {
+                 // Should not happen if filteredArticles > 0, but as a safeguard:
+                displayResults(currentOriginalQuery, currentPubmedQuery, "No articles selected for summary.", currentFilteredArticles, activeFilters);
+                setLoading(false);
+                return;
+            }
+
+            setLoading(true, `Generating English summary for the ${articlesToSummarize.length} included articles using Map-Reduce...`);
+
+            // 5. Call LLM for English summary using the new Map-Reduce method
+            const summaryType = document.querySelector('input[name="summaryType"]:checked').value;
+            // Pass the currentOriginalQuery here
+            const englishSummary = await summarizeWithMapReduce(articlesToSummarize, summaryType, currentOriginalQuery);
+            lastEnglishSummary = englishSummary; // Store the original English summary
+
+            // 6. Check for and apply translation
+            const currentLang = languageSelect.value;
+            let finalSummary = englishSummary;
+            if (currentLang !== 'en') {
+                setLoading(true, `Translating summary to ${languageSelect.options[languageSelect.selectedIndex].text}...`);
+                finalSummary = await translateSummary(englishSummary, currentLang);
+            }
+
+            // 7. Display results
+            displayResults(currentOriginalQuery, currentPubmedQuery, finalSummary, currentFilteredArticles, activeFilters); 
+            setLoading(false);
         }
         
         /**
-         * Fetches article IDs from PubMed based on a query.
-         * @param {string} query The search query.
-         * @returns {Array<string>} An array of PMIDs.
+         * Helper function to properly format the summary output HTML.
+         * This improves the rendering of Markdown and highlights citations.
          */
+        function formatSummaryOutput(summary) {
+            let html = summary;
+
+            // 1. Convert remaining newlines to breaks for better paragraph separation
+            // Only convert single \n to <br> to preserve markdown lists/blocks if they exist
+            html = html.replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>');
+            html = `<p>${html}</p>`;
+
+            // 2. Highlight citations [N] or [N, M, ...] using a styled span for clarity
+            html = html.replace(/\[([\d,\s]+)\]/g, (match, p1) => {
+                return `<span class="inline-block px-1 bg-blue-100 text-blue-800 font-semibold rounded-md text-sm cursor-pointer hover:bg-blue-200 transition-colors">[${p1}]</span>`;
+            });
+            
+            return html;
+        }
+
+        /**
+         * Helper function to create the text context for summarization.
+         * FIX: Now uses the absolute citation ID.
+         * @param {Array} articles - The chunk of articles.
+         * @param {number} globalStartIndex - The starting index in the master includedArticlesForSummary array.
+         */
+        function prepareSummaryContext(articles, globalStartIndex) {
+            return articles.map((article, index) => {
+                // The crucial fix: calculate the absolute citation ID (1-based)
+                const citationID = globalStartIndex + index + 1; 
+                
+                let text = `[ARTICLE ${citationID}] (PMID: ${article.pmid}, Citations: ${article.citationCount}, Year: ${article.year}): ${article.title}\n`;
+                if (article.fullText) {
+                    text += `--- FULL TEXT (Truncated) ---\n${article.fullText}\n--- END FULL TEXT ---\n`;
+                } else {
+                     text += `Abstract: ${article.abstract || 'No abstract available.'}`;
+                }
+                return text;
+            }).join('\n\n====================\n\n');
+        }
+
+        /**
+         * Function to translate the natural language query into an optimized PubMed search string.
+         * Now handles 'precise', 'balanced', and 'broad' search scopes.
+         */
+        async function translateQuery(query, searchScope) {
+            let instruction = "";
+            if (searchScope === 'broad') {
+                instruction = "To ensure **high recall (broadness)**, use broader MeSH terms, favor OR operators over AND where appropriate, and include more synonyms/related terms to maximize the number of relevant results. Avoid overly restrictive field tags.";
+            } else if (searchScope === 'precise') {
+                instruction = "To ensure **high precision (specificity)**, use highly specific MeSH terms, favor AND operators, and use restrictive field tags (like [tiab], [majr]) to filter for the most relevant papers.";
+            } else { // 'balanced' (new default)
+                 instruction = "To achieve a **balanced** search result set, use a combination of specific MeSH terms and common synonyms linked by balanced use of AND/OR. Aim for a query that provides relevant results without being overly narrow or too broad. Use [tiab] for key concepts but allow for some broader terms.";
+            }
+
+            const systemPrompt = `You are an expert bioinformatician. Convert the following natural language research question into a highly optimized PubMed search query. ${instruction} Provide ONLY the final search string, without any other conversational text or explanation.`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: `Original Research Question: ${query}` }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                // Use Google Search tool to ground the model's knowledge of MeSH terms
+                tools: [{ "google_search": {} }], 
+            };
+            
+            const optimizedQuery = await callGeminiApi(payload);
+            return optimizedQuery.trim();
+        }
+
+        // --- LLM Functions ---
+        
+        /**
+         * The new Map-Reduce implementation for summarization.
+         * FIX: Ensures that citation IDs are absolute (1 to 15) in the intermediate summaries.
+         * PERFORMANCE FIX: Runs the map step in parallel using Promise.all().
+         */
+        async function summarizeWithMapReduce(articles, summaryType, originalQuery) {
+            if (articles.length === 0) return "No articles were included in the summary generation process.";
+            
+            // 1. Map Step: Generate intermediate summaries (Key Findings Lists)
+            const chunks = [];
+            for (let i = 0; i < articles.length; i += MAP_REDUCE_CHUNK_SIZE) {
+                chunks.push(articles.slice(i, i + MAP_REDUCE_CHUNK_SIZE));
+            }
+            
+            setLoading(true, `Step 1/2: Analyzing ${articles.length} articles in ${chunks.length} batches (running in parallel)...`);
+            
+            // ** PARALLELIZATION FIX: Create an array of promises for concurrent execution **
+            const mapPromises = chunks.map((chunk, i) => {
+                const globalStartIndex = i * MAP_REDUCE_CHUNK_SIZE; // Start index for citation ID calculation
+                
+                // CRUCIAL: Pass globalStartIndex so the LLM knows the absolute citation ID
+                const textToSummarize = prepareSummaryContext(chunk, globalStartIndex);
+                
+                // Custom prompt for the map step
+                // The prompt instructs the LLM to use the full [ARTICLE N] label as the citation
+                const mapSystemPrompt = `You are a medical research assistant. Your task is to read the following research articles (labeled [ARTICLE N] where N is the final citation ID 1 through 15) and generate a concise **list of key findings, methodologies, and conclusions** for this small set. **Crucially, you MUST preserve the full citation ID (e.g., [ARTICLE 1] or [ARTICLE 6]) after each finding.** Your output should be a single, detailed, bulleted list. Respond ONLY with the list.`;
+                
+                // Return the promise for the API call
+                return callGeminiApi({
+                    contents: [{ parts: [{ text: textToSummarize }] }],
+                    systemInstruction: { parts: [{ text: mapSystemPrompt }] },
+                });
+            });
+
+            // Execute all map calls concurrently. This is the main performance boost.
+            const intermediateSummaries = await Promise.all(mapPromises);
+            
+            // 2. Reduce Step: Synthesize final summary
+            const combinedIntermediateText = intermediateSummaries.join('\n\n--- INTERMEDIATE FINDINGS BREAK ---\n\n');
+            
+            setLoading(true, `Step 2/2: Synthesizing ${chunks.length} intermediate findings lists into final summary...`);
+            
+            // Pass the original query to the reducer prompt
+            const reduceSystemPrompt = getReduceSystemPrompt(summaryType, originalQuery); 
+            
+            return await callGeminiApi({
+                contents: [{ parts: [{ text: combinedIntermediateText }] }],
+                systemInstruction: { parts: [{ text: reduceSystemPrompt }] },
+            });
+        }
+
+        /**
+         * Helper to get the final reduction prompt based on summary depth.
+         * FIX: Instructs the LLM to convert [ARTICLE N] to [N] in the final output.
+         */
+        function getReduceSystemPrompt(summaryType, originalQuery) {
+            let basePrompt;
+            
+            // Core instruction to focus on the original query
+            const focusInstruction = `Your synthesis MUST specifically address and directly answer the original research question: "${originalQuery}".`;
+            
+            // NEW INSTRUCTION: How to handle citations
+            const citationInstruction = `When using a citation, convert the source ID [ARTICLE N] into the final citation format [N] (e.g., [ARTICLE 1, ARTICLE 3] becomes [1, 3]).`;
+
+
+            if (summaryType === 'breakdown') { 
+                // Use markdown headings for a structured breakdown
+                return `You are a medical research synthesizer. You have been given several lists of key findings (intermediate summaries). ${focusInstruction} Your task is to unify all these points into a single, highly **structured summary** using clear Markdown headings (##). You MUST adhere to this structure:
+                
+                ## 1. Research Overview
+                Briefly state the research question and main conclusion derived from the articles.
+                
+                ## 2. Methodology & Study Design
+                Describe the types of studies included, sample sizes, and key intervention/exposure.
+                
+                ## 3. Key Findings
+                List the principal results, focusing on the most important outcomes that relate to the original query.
+                
+                ## 4. Conclusion & Implications
+                Synthesize the overall conclusion and discuss the practical implications of the findings.
+                
+                ${citationInstruction} You MUST include the final citation ID(s) in brackets, like [1, 3], after every derived claim.`;
+
+            } else if (summaryType === 'deep') {
+                basePrompt = `deep, comprehensive, multi-paragraph summary. Synthesize the key findings, methodologies, trends, and conclusions. ${focusInstruction} ${citationInstruction}`;
+            } else if (summaryType === 'layman') {
+                basePrompt = `concise, easy-to-understand summary in **layman's terms**. Avoid technical jargon, use simple language. ${focusInstruction} ${citationInstruction}`;
+            } else if (summaryType === 'technical') {
+                // Technical requires a specific structure, which we embed here
+                return `You are an expert research scientist. You have been given several lists of key findings. ${focusInstruction} Your task is to unify all these points into a single, highly **technically accurate and complete** summary, structured into three distinct sections.
+                1. **Methods & Design:** Describe the primary study designs, sample sizes, dosage, and key analytical techniques found in the lists.
+                2. **Key Results:** State the principal findings, focusing on **statistically significant outcomes** and incorporating numerical data where present.
+                3. **Conclusion & Limitations:** Synthesize the overall conclusion and explicitly mention any methodological limitations.
+                You MUST use highly technical language. ${citationInstruction} Strictly adhere to the final citation format [1, 3] after every derived claim.`;
+
+            } else { // 'brief'
+                basePrompt = `brief, one-paragraph summary. Synthesize the key findings and conclusions. ${focusInstruction} ${citationInstruction}`;
+            }
+
+            return `You are a specialized medical research assistant. You have been given several lists of key findings (intermediate summaries). Your task is to unify all these points into a single, cohesive, and ${basePrompt} Whenever you state a specific finding or conclusion derived from the intermediate lists, you MUST follow that statement immediately with the final citation ID(s) in brackets, like [1, 3] or [2].`;
+        }
+
+        /**
+         * Function to translate the generated summary, with special handling for 'pirate'.
+         */
+        async function translateSummary(text, targetLang) {
+            if (targetLang === 'en') return text; 
+            
+            let systemPrompt;
+            
+            if (targetLang === 'pirate') {
+                systemPrompt = `Ahoy, matey! Ye be a scurvy pirate translator, an' yer task be to translate the followin' scholarly text into the tongue of a swashbucklin' seadog. Keep all th' numerical data, scientific terms, and citation marks (like [1, 3]) exactly as they be in the original. Make yer translation lively and nautical! Respond ONLY with yer translated text.`;
+            } else {
+                const langName = languageSelect.options[languageSelect.selectedIndex].text.split('(')[0].trim();
+                
+                systemPrompt = `You are a professional translator specializing in scientific texts. Translate the following English scientific summary into ${langName}. It is crucial that you retain all numerical data, scientific terms, and citation markers (e.g., [1, 3]) exactly as they appear in the original text. Maintain a formal, academic tone. Provide ONLY the translated text.`;
+            }
+
+            const payload = {
+                contents: [{ parts: [{ text: text }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+            return await callGeminiApi(payload);
+        }
+
+        async function chatWithLLM(history, context) {
+            const systemPrompt = `You are a specialized medical research assistant. The user is asking follow-up questions about a set of research articles. Based *only* on the provided context (summary and articles), answer the user's questions. Do not use external knowledge. Be concise and directly answer the question.\n\n--- CONTEXT START ---\n${context}\n--- CONTEXT END ---`;
+            const payload = {
+                contents: history, // The chat history
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+            return await callGeminiApi(payload);
+        }
+
+        async function callGeminiApi(payload) {
+            let response;
+            let attempts = 0;
+            let delay = 1000; 
+            while (attempts < 5) {
+                try {
+                    response = await fetch(GEMINI_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (response.ok) {
+                        const result = await response.json();
+                        const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                        if (text) return text;
+                        else throw new Error("Invalid response structure from LLM API (no text).");
+                    } else if (response.status === 429 || response.status >= 500) {
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        delay *= 2; 
+                        attempts++;
+                    } else {
+                        const errorResult = await response.json();
+                        throw new Error(`LLM API Error: ${errorResult.error?.message || response.statusText}`);
+                    }
+                } catch (error) {
+                    if (attempts >= 4) throw error; 
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2;
+                    attempts++;
+                }
+            }
+            throw new Error("LLM request failed after multiple retries.");
+        }
+
+
+        // --- PubMed Fetching & Parsing (Unchanged) ---
+        
         async function searchPubMed(query) {
             const encodedQuery = encodeURIComponent(query);
-            const response = await fetch(`${ESEARCH_URL}&term=${encodedQuery}`);
+            const url = `${ESEARCH_URL}&term=${encodedQuery}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`PubMed search failed with status ${response.status}`);
             const data = await response.json();
-            return data.esearchresult.idlist;
+            return data.esearchresult?.idlist || [];
         }
-
-        /**
-         * Fetches detailed information for a list of PMIDs.
-         * @param {Array<string>} pmids An array of PubMed IDs.
-         * @returns {Array<Object>} An array of article objects.
-         */
-        async function fetchArticleDetails(pmids) {
-            if (pmids.length === 0) return [];
-
-            const pmidString = pmids.join(',');
-            const response = await fetch(`${EFETCH_URL}&id=${pmidString}`);
-            const xmlText = await response.text();
-            
-            let articles = parsePubMedXML(xmlText);
-
-            // Attempt to fetch full text from PMC for each article
-            articles = await Promise.all(articles.map(async article => {
-                if (article.pmcid) { // Only try if we have a PMC ID
-                    try {
-                        const pmcFullText = await fetchPmcFullText(article.pmcid);
-                        if (pmcFullText) {
-                            article.fullText = pmcFullText;
-                        }
-                    } catch (error) {
-                        console.warn(`Could not fetch PMC full text for PMID ${article.pmid} (PMC ID ${article.pmcid}):`, error);
-                    }
-                }
-                return article;
-            }));
-
-            return articles;
-        }
-
-        /**
-         * Fetches full text from PMC for a given PMC ID.
-         * @param {string} pmcId The PMC ID.
-         * @returns {string|null} The full text content or null if not found/error.
-         */
-        async function fetchPmcFullText(pmcId) {
+        
+        async function fetchFullText(pmcid) {
+            const url = `${PMC_EFETCH_URL}${pmcid}`;
             try {
-                const response = await fetch(`${PMC_EFETCH_URL}${pmcId}`);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                const response = await fetch(url);
+                if (response.ok) {
+                    const xmlText = await response.text();
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(xmlText, "application/xml");
+                    const bodyNode = xmlDoc.querySelector('body');
+                    if (bodyNode) {
+                        let fullText = bodyNode.textContent.trim().replace(/\s\s+/g, ' ');
+                        const MAX_CHARS = 5000;
+                        if (fullText.length > MAX_CHARS) {
+                            fullText = fullText.substring(0, MAX_CHARS) + '... [Full Text Truncated]';
+                        }
+                        return fullText;
+                    }
+                    return null; 
+                } else {
+                    console.warn(`PMC fetch failed for PMCID ${pmcid}: HTTP Status ${response.status}.`);
+                    return null;
                 }
-                const xmlText = await response.text();
-                const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(xmlText, "application/xml");
-
-                // Extract body text, focusing on paragraphs
-                let fullText = '';
-                const bodyNodes = xmlDoc.querySelectorAll('body p');
-                bodyNodes.forEach(p => {
-                    fullText += p.textContent + '\n';
-                });
-                return fullText.trim() || null;
-
             } catch (error) {
-                console.error(`Error fetching PMC full text for PMC ID ${pmcId}:`, error);
+                console.warn(`Network error fetching full text for PMCID ${pmcid}. Error: ${error.message}`);
                 return null;
             }
         }
-
-        /**
-         * Fetches citation counts for a list of articles using NCBI ELINK.
-         * Modifies the articles array in place.
-         * @param {Array<Object>} articles An array of article objects.
-         */
-        async function fetchCitationCounts(articles) {
-            if (articles.length === 0) return;
-
-            const pmidToArticleMap = new Map(articles.map(article => [article.pmid, article]));
-            const pmids = articles.map(article => article.pmid);
+        
+        async function fetchCitationCounts(pmids) {
+            if (pmids.length === 0) return {};
             const pmidString = pmids.join(',');
-
+            const url = `${ELINK_URL}&id=${pmidString}`;
             try {
-                const response = await fetch(`${ELINK_URL}&id=${pmidString}`);
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("eLink failed to fetch citation counts.");
                 const data = await response.json();
-
-                if (data.linksets) {
-                    data.linksets.forEach(linkset => {
-                        const pmid = linkset.idsandlinksets[0].id;
-                        const article = pmidToArticleMap.get(pmid);
-                        if (article) {
-                            // The 'link' array under linksets.idsandlinksets[0].link contains cited-by PMIDs
-                            article.citationCount = linkset.idsandlinksets[0].link ? linkset.idsandlinksets[0].link.length : 0;
-                        }
-                    });
-                }
+                const counts = {};
+                
+                data.linksets?.forEach(linkset => {
+                    const pmid = linkset.ids?.[0]; 
+                    if (pmid) {
+                        const citedByLink = linkset.linksetdbs?.find(db => db.linkname === 'pubmed_pubmed_citedby');
+                        const count = citedByLink?.links?.length || 0;
+                        counts[pmid] = count;
+                    }
+                });
+                return counts;
             } catch (error) {
-                console.error("Error fetching citation counts:", error);
-                // Fail gracefully, articles will just have 0 citationCount
+                console.error("Error fetching citation counts via eLink:", error.message);
+                return pmids.reduce((acc, pmid) => ({ ...acc, [pmid]: 0 }), {});
             }
         }
 
-        /**
-         * Parses PubMed XML response into an array of article objects.
-         * @param {string} xmlText The XML response from EFetch.
-         * @returns {Array<Object>} An array of parsed article objects.
-         */
+
         function parsePubMedXML(xmlText) {
             const parser = new DOMParser();
             const xmlDoc = parser.parseFromString(xmlText, "application/xml");
             const articles = [];
             const articleNodes = xmlDoc.getElementsByTagName('PubmedArticle');
-
             for (const node of articleNodes) {
                 const pmidNode = node.querySelector('PMID');
                 const titleNode = node.querySelector('ArticleTitle');
                 const abstractNodes = node.querySelectorAll('AbstractText');
-                
                 let year = new Date().getFullYear();
                 const pubDateNode = node.querySelector('PubDate Year');
                 if (pubDateNode) year = parseInt(pubDateNode.textContent);
-                
                 const pubTypeNodes = node.querySelectorAll('PublicationType');
                 let pubType = 'Journal Article';
                 if (pubTypeNodes.length > 0) {
-                    pubType = Array.from(pubTypeNodes).map(n => n.textContent).join(', ');
+                     pubType = Array.from(pubTypeNodes).map(n => n.textContent).join(', ');
                 }
                 
                 let pmcId = null;
@@ -791,26 +991,7 @@
                         .find(id => id.getAttribute('IdType') === 'pmc');
                     if (pmcIdNode) pmcId = pmcIdNode.textContent.replace('PMC', ''); 
                 }
-
                 let abstract = Array.from(abstractNodes).map(n => n.textContent).join(' ') || 'No abstract available';
-
-                // --- NEW EXTRACTION LOGIC ---
-                const journalTitleNode = node.querySelector('Journal > Title'); // Full journal title
-                const medlineTAnode = node.querySelector('MedlineTA'); // Medline abbreviation
-                const volumeNode = node.querySelector('JournalIssue > Volume');
-                const issueNode = node.querySelector('JournalIssue > Issue');
-                const pagesNode = node.querySelector('Pagination > MedlinePgn');
-                
-                const authors = [];
-                const authorNodes = node.querySelectorAll('AuthorList > Author');
-                authorNodes.forEach(authorNode => {
-                    const lastName = authorNode.querySelector('LastName')?.textContent;
-                    const initials = authorNode.querySelector('Initials')?.textContent;
-                    if (lastName) {
-                        authors.push(initials ? `${lastName} ${initials}` : lastName);
-                    }
-                });
-
                 articles.push({
                     pmid: pmidNode ? pmidNode.textContent : 'Unknown',
                     title: titleNode ? titleNode.textContent : 'No title available',
@@ -819,326 +1000,56 @@
                     fullText: null, 
                     year: year,
                     publicationType: pubType,
-                    citationCount: 0,
-                    // --- NEW FIELDS ADDED TO ARTICLE OBJECT ---
-                    journal: journalTitleNode ? journalTitleNode.textContent : (medlineTAnode ? medlineTAnode.textContent : 'N/A'),
-                    volume: volumeNode ? volumeNode.textContent : '',
-                    issue: issueNode ? issueNode.textContent : '',
-                    pages: pagesNode ? pagesNode.textContent : '',
-                    authors: authors.length > 0 ? authors : ['N/A'] 
+                    citationCount: 0 
                 });
             }
             return articles;
         }
 
-        /**
-         * Translates a natural language query into an optimized PubMed search query using Gemini.
-         * @param {string} naturalQuery The user's natural language query.
-         * @param {string} searchScope The desired search scope (precise, balanced, broad).
-         * @returns {string} The optimized PubMed query.
-         */
-        async function translateQuery(naturalQuery, searchScope) {
-            let systemInstruction = `You are an expert in PubMed search syntax and MeSH (Medical Subject Headings). Your task is to convert a user's natural language query into an optimized PubMed search string. Focus on using MeSH terms for accuracy and incorporating Boolean operators (AND, OR, NOT) and field tags (e.g., [MeSH], [tiab], [jour]).`;
+        async function fetchArticleDetails(pmids) {
+            const pmidString = pmids.join(',');
+            const url = `${EFETCH_URL}&id=${pmidString}`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`PubMed fetch failed with status ${response.status}`);
+            const xmlText = await response.text();
             
-            let scopeInstructions = '';
-            if (searchScope === 'precise') {
-                scopeInstructions = `Prioritize high precision. Use specific MeSH terms, stricter boolean logic (more ANDs), and potentially [Title/Abstract] or [MeSH] tags for all key concepts. Avoid overly broad terms.`;
-            } else if (searchScope === 'balanced') {
-                scopeInstructions = `Aim for a good balance of precision and recall. Use a mix of MeSH terms and keyword searches in titles/abstracts. Combine concepts with AND, but allow for some synonyms with OR.`;
-            } else if (searchScope === 'broad') {
-                scopeInstructions = `Prioritize high recall. Use broader MeSH terms, more OR operators for synonyms/related concepts, and consider searching across all fields. Don't be too restrictive.`;
-            }
+            let articles = parsePubMedXML(xmlText);
+            
+            const citationCounts = await fetchCitationCounts(pmids);
 
-            const prompt = `
-                ${systemInstruction}
-                ${scopeInstructions}
-
-                User's Natural Language Query: "${naturalQuery}"
-
-                Provide ONLY the PubMed search query string. Do not include any other text, explanations, or formatting like bullet points or "PubMed query:". Just the query string.
-                Example output: "resveratrol[MeSH] AND mitochondrial function[tiab] AND aging[MeSH]"
-                `;
-
-            try {
-                const response = await callGeminiAPI([{ role: 'user', parts: [{text: prompt}]}]);
-                return response.trim();
-            } catch (error) {
-                console.error("Error translating query:", error);
-                return naturalQuery; // Fallback to original query
-            }
-        }
-
-        /**
-         * Summarizes a list of articles using a Map-Reduce approach with Gemini.
-         * @param {Array<Object>} articles An array of article objects to summarize.
-         * @param {string} summaryType The desired type of summary (brief, deep, layman, technical, breakdown).
-         * @param {string} originalQuery The user's original query for context.
-         * @returns {string} The combined summary.
-         */
-        async function summarizeWithMapReduce(articles, summaryType, originalQuery) {
-            if (articles.length === 0) {
-                return "No articles provided for summarization.";
-            }
-
-            // Map step: Summarize each article individually
-            const articleSummaries = await Promise.all(articles.map(async (article, index) => {
-                const content = article.fullText || article.abstract; // Prefer full text if available
-                const articleContext = `PMID: ${article.pmid}\nTitle: ${article.title}\nContent: ${content}`;
-                
-                let summaryInstruction = '';
-                switch (summaryType) {
-                    case 'brief':
-                        summaryInstruction = 'Provide a brief 1-2 sentence summary.';
-                        break;
-                    case 'deep':
-                        summaryInstruction = 'Provide a detailed summary, highlighting key findings, methodologies, and implications.';
-                        break;
-                    case 'layman':
-                        summaryInstruction = 'Summarize in simple, easy-to-understand language for a non-expert, avoiding jargon.';
-                        break;
-                    case 'technical':
-                        summaryInstruction = 'Provide a technical, scientific summary, using appropriate terminology and focusing on specific experimental details and mechanisms.';
-                        break;
-                    case 'breakdown':
-                        summaryInstruction = 'Provide a structured summary, breaking it down into sections like "Background", "Methods", "Results", "Conclusion".';
-                        break;
+            const fullTextFetches = articles.map(async (article) => {
+                article.citationCount = citationCounts[article.pmid] || 0; 
+                if (article.pmcid) {
+                    article.fullText = await fetchFullText(article.pmcid);
                 }
-
-                const prompt = `
-                    You are an expert scientific summarizer. Summarize the following article based on the user's original query.
-                    Original Query: "${originalQuery}"
-                    Article to summarize:
-                    ${articleContext}
-
-                    ${summaryInstruction}
-                    Crucially, include the PMID reference at the end of the summary like this: [PMID:12345].
-                `;
-                
-                try {
-                    const response = await callGeminiAPI([{ role: 'user', parts: [{text: prompt}]}]);
-                    return response;
-                } catch (error) {
-                    console.error(`Error summarizing PMID ${article.pmid}:`, error);
-                    return `[PMID:${article.pmid}] - Error summarizing this article.`;
-                }
-            }));
-
-            // Reduce step: Combine individual summaries into a single comprehensive summary
-            // Process in chunks to avoid overwhelming the model
-            let combinedSummary = "";
-            for (let i = 0; i < articleSummaries.length; i += MAP_REDUCE_CHUNK_SIZE) {
-                const chunk = articleSummaries.slice(i, i + MAP_REDUCE_CHUNK_SIZE);
-                const chunkText = chunk.join('\n\n---\n\n'); // Separator for chunked summaries
-
-                const reducePrompt = `
-                    You are an expert in scientific literature synthesis.
-                    Combine the following individual article summaries into one cohesive and comprehensive summary.
-                    Ensure that information from different articles is integrated logically, avoiding redundancy where possible.
-                    Maintain the original PMID references ([PMID:12345]) next to the information they support.
-                    Do not add any introductory or concluding remarks outside of the summary content.
-                    Individual Summaries to combine:
-                    ${chunkText}
-                `;
-                try {
-                    const response = await callGeminiAPI([{ role: 'user', parts: [{text: reducePrompt}]}]);
-                    combinedSummary += response + '\n\n';
-                } catch (error) {
-                    console.error("Error combining article summaries:", error);
-                    combinedSummary += `\n\nError combining a chunk of summaries. Here are the raw summaries:\n${chunkText}`;
-                }
-            }
-
-            // Final Polish Step (Optional, but good for flow)
-            const finalPolishPrompt = `
-                Review the following combined scientific summary.
-                Your goal is to ensure it flows well, has a coherent structure, and addresses the original user query: "${originalQuery}".
-                Check for any remaining redundancies and improve sentence structure without losing any original information or PMID citations.
-                Do not add any new information not present in the combined summaries.
-                Keep all PMID citations intact.
-                Combined Summary:
-                ${combinedSummary}
-            `;
-
-            try {
-                const finalSummary = await callGeminiAPI([{ role: 'user', parts: [{text: finalPolishPrompt}]}]);
-                return finalSummary;
-            } catch (error) {
-                console.error("Error polishing final summary:", error);
-                return combinedSummary; // Return the unpolished version if polish fails
-            }
-        }
-
-
-        /**
-         * Translates a given summary text to a target language using Gemini.
-         * @param {string} text The text to translate.
-         * @param {string} targetLanguage The ISO 639-1 code for the target language (e.g., 'es', 'fr').
-         * @returns {string} The translated text.
-         */
-        async function translateSummary(text, targetLanguage) {
-            if (targetLanguage === 'en') return text; // No translation needed for English
-
-            const prompt = `
-                Translate the following scientific summary to the ${targetLanguage} language.
-                Maintain all PMID citations in their original format like [PMID:12345].
-                Do not add any additional commentary or text outside of the translation itself.
-
-                Summary to translate:
-                ${text}
-            `;
-
-            try {
-                const response = await callGeminiAPI([{ role: 'user', parts: [{text: prompt}]}]);
-                return response;
-            } catch (error) {
-                console.error("Error translating summary:", error);
-                return `Translation failed. Here is the original summary:\n${text}`;
-            }
-        }
-
-
-        /**
-         * Generic function to call the Gemini API.
-         * @param {Array<Object>} contents An array of message parts for the Gemini API.
-         * @returns {string} The text content from the Gemini response.
-         */
-        async function callGeminiAPI(contents) {
-            const response = await fetch(GEMINI_API_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ contents }),
+                return article;
             });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                console.error("Gemini API Error:", errorData);
-                throw new Error(`Gemini API error: ${response.status} ${response.statusText} - ${errorData.error?.message || 'Unknown error'}`);
-            }
-
-            const data = await response.json();
-            return data.candidates[0].content.parts[0].text;
+            articles = await Promise.all(fullTextFetches);
+            return articles;
         }
 
-        /**
-         * Applies the current filters and sorting to the raw articles.
-         * @param {Array<Object>} articles The full list of articles to filter/sort.
-         * @returns {Array<Object>} The filtered and sorted list.
-         */
-        function applyFiltersAndSort(articles) {
-            let currentArticles = [...articles]; // Create a shallow copy to avoid modifying original
 
-            // 1. Apply Filters
-            const minYear = parseInt(minYearInput.value);
-            const minCitationCount = parseInt(minCitationCountInput.value);
-            const selectedPubTypes = Array.from(pubTypeSelect.options)
-                                    .filter(option => option.selected && option.value !== 'All')
-                                    .map(option => option.value);
-
-            currentArticles = currentArticles.filter(article => {
-                let passesYear = true;
-                if (!isNaN(minYear)) {
-                    passesYear = article.year >= minYear;
-                }
-
-                let passesCitation = true;
-                if (!isNaN(minCitationCount)) {
-                    passesCitation = article.citationCount >= minCitationCount;
-                }
-
-                let passesPubType = true;
-                if (selectedPubTypes.length > 0) {
-                    passesPubType = selectedPubTypes.some(type => article.publicationType.includes(type));
-                }
-                
-                return passesYear && passesCitation && passesPubType;
-            });
-
-            // 2. Apply Sorting
-            const sortBy = sortBySelect.value;
-            switch (sortBy) {
-                case 'relevance':
-                    // Relevance is implicitly maintained by the order from PubMed's search result
-                    // For stability, we keep the original order if no other sort is applied
-                    break;
-                case 'year-desc':
-                    currentArticles.sort((a, b) => b.year - a.year);
-                    break;
-                case 'year-asc':
-                    currentArticles.sort((a, b) => a.year - b.year);
-                    break;
-                case 'citations-desc':
-                    currentArticles.sort((a, b) => b.citationCount - a.citationCount);
-                    break;
-                case 'citations-asc':
-                    currentArticles.sort((a, b) => a.citationCount - b.citationCount);
-                    break;
-            }
-
-            return currentArticles;
-        }
-
-        /**
-         * Calculates the number of active filters.
-         * @returns {number} The count of active filters.
-         */
-        function getActiveFilterCount() {
-            let count = 0;
-            if (minYearInput.value) count++;
-            if (minCitationCountInput.value) count++;
+        // --- UI & Chat Helper Functions ---
+        
+        function displayResults(originalQuery, pubmedQuery, summary, currentFilteredArticles, activeFilters = 0) {
+            originalQueryText.textContent = originalQuery; 
+            translatedQueryText.textContent = pubmedQuery; 
             
-            const selectedPubTypes = Array.from(pubTypeSelect.options)
-                                    .filter(option => option.selected && option.value !== 'All');
-            if (selectedPubTypes.length > 0) count++;
+            // Use the new function to format and render the summary
+            summaryText.innerHTML = formatSummaryOutput(summary); 
+            
+            let activeFilterText = activeFilters > 0 ? `${activeFilters} Applied` : '0 Applied';
+            filterStatusText.textContent = `Filter & Sort Articles (${activeFilterText} / ${originalArticles.length} Total)`;
+            filteredCountSpan.textContent = currentFilteredArticles.length;
 
-            // Sorting is not typically considered a 'filter' for counting purposes, but can be added if desired.
-            // if (sortBySelect.value !== 'relevance') count++; 
-            return count;
-        }
-/**
-         * Displays the search results in the UI.
-         * @param {string} originalQuery The user's original query.
-         * @param {string} pubmedQuery The optimized PubMed query used.
-         * @param {string} summary The generated AI summary.
-         * @param {Array<Object>} articles The list of articles to display.
-         * @param {number} activeFilterCount The number of active filters.
-         */
-        function displayResults(originalQuery, pubmedQuery, summary, articles, activeFilterCount) {
-            originalQueryText.textContent = originalQuery;
-            translatedQueryText.textContent = pubmedQuery;
-            summaryText.innerHTML = formatSummaryWithCitations(summary); // Format summary for display
-            
-            displayArticlesList(articles);
-            
-            filteredCountSpan.textContent = articles.length;
-            filterStatusText.textContent = `Filter & Sort Articles (${activeFilterCount} Applied / ${articles.length} Total)`;
+            displayArticlesList(currentFilteredArticles);
 
             resultsContainer.classList.remove('hidden');
+
+            // Reset and show chat
+            resetChat(summary, includedArticlesForSummary);
         }
 
-        /**
-         * Formats the summary text to make PMID citations clickable.
-         * @param {string} summary The raw summary text.
-         * @returns {string} The formatted HTML string.
-         */
-        function formatSummaryWithCitations(summary) {
-            // This regex finds [PMID:12345] and captures the PMID number
-            return summary.replace(/\[PMID:(\d+)\]/g, (match, pmid) => {
-                // Find the corresponding article in includedArticlesForSummary to get its display number
-                const articleIndex = includedArticlesForSummary.findIndex(a => a.pmid === pmid);
-                if (articleIndex !== -1) {
-                    // Use 1-based index for display
-                    return `<a href="#article-${pmid}" class="text-blue-600 hover:underline font-semibold">[${articleIndex + 1}]</a>`;
-                }
-                return match; // If article not found, return original match
-            });
-        }
-
-        /**
-         * Displays the list of articles.
-         * @param {Array<Object>} currentFilteredArticles The articles to display.
-         */
         function displayArticlesList(currentFilteredArticles) {
             articlesList.innerHTML = '';
             
@@ -1146,29 +1057,38 @@
                 const isIncluded = includedArticlesForSummary.some(a => a.pmid === article.pmid);
 
                 const li = document.createElement('li');
-                li.id = `article-${article.pmid}`; // Add ID for citation links
+                // Use a different style for articles not included in the summary
                 li.className = `text-gray-700 flex items-start gap-2 p-2 rounded-lg transition-all ${isIncluded && index < SUMMARY_LIMIT ? 'bg-blue-50/50 border border-blue-100' : 'bg-white'}`;
                 
+                let citationPrefix = '';
+                const listItemNumber = index + 1; // 1-based index for display
+
+                // Checkbox and Citation Number for the top 15 results
                 if (index < SUMMARY_LIMIT) {
+                    
+                    // 1. Checkbox for Exclusion
                     const checkbox = document.createElement('input');
                     checkbox.type = 'checkbox';
                     checkbox.checked = !isIncluded; // Checked means EXCLUDED
                     checkbox.className = 'mt-1 w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 cursor-pointer exclusion-checkbox';
                     checkbox.setAttribute('data-pmid', article.pmid);
-                    // Use the currentHandleExclusionToggle, which might be overridden during URL load
-                    checkbox.addEventListener('change', currentHandleExclusionToggle); 
+                    checkbox.addEventListener('change', handleExclusionToggle);
                     
+                    // 2. Citation Number
                     const citationSpan = document.createElement('span');
                     citationSpan.className = `font-bold mr-1 w-6 text-center shrink-0 ${isIncluded ? 'text-blue-600' : 'text-gray-400'}`;
-                    citationSpan.textContent = `[${index + 1}]`; // 1-based index for display
+                    citationSpan.textContent = `[${listItemNumber}]`;
                     
                     li.appendChild(checkbox);
                     li.appendChild(citationSpan);
 
+                    citationPrefix = ''; // Citation prefix is now inside the citationSpan
                 } else {
+                    // Placeholder for alignment for articles beyond the top 15
                     li.innerHTML = `<span class="w-10 shrink-0"></span>`; 
                 }
 
+                // 3. Article Content (Title, Link, Meta)
                 const contentDiv = document.createElement('div');
                 contentDiv.className = "flex flex-col flex-grow";
 
@@ -1179,38 +1099,8 @@
                 link.rel = "noopener noreferrer"; 
                 link.className = "text-blue-600 hover:underline font-medium";
                 
-                // --- NEW: Detailed Citation Information ---
-                // Format authors: "LastName F., LastName F. et al." if more than 3
-                const authorsShort = article.authors.slice(0, 3).map(name => {
-                    // Assuming name format "LastName Initials"
-                    const parts = name.split(' ');
-                    if (parts.length > 1) {
-                        return `${parts[0]} ${parts.slice(1).join('')}.`; // e.g., "Smith J."
-                    }
-                    return name; // just last name if no initials
-                }).join(', ') + (article.authors.length > 3 ? ' et al.' : '');
-                
-                const citationDetail = document.createElement('div');
-                citationDetail.className = "text-sm text-gray-800 mt-0.5 italic"; // Added italic for journal info
-                
-                let citationParts = [];
-                if (authorsShort !== 'N/A') citationParts.push(authorsShort);
-                if (article.year) citationParts.push(`${article.year}`);
-                
-                let journalInfo = [];
-                if (article.journal && article.journal !== 'N/A') journalInfo.push(article.journal);
-                if (article.volume) journalInfo.push(`Vol. ${article.volume}`);
-                if (article.issue) journalInfo.push(`No. ${article.issue}`);
-                if (article.pages) journalInfo.push(`pp. ${article.pages}`);
-
-                if (journalInfo.length > 0) {
-                     citationParts.push(journalInfo.join(', '));
-                }
-
-                citationDetail.textContent = citationParts.join('; '); // Join main parts with semicolon for clarity
-                
                 const metaText = document.createElement('span');
-                let metaContent = `Citations: ${article.citationCount}`;
+                let metaContent = `Citations: ${article.citationCount}, Year: ${article.year}`;
                 if (article.fullText) {
                     metaContent += ' (Full Text Used)';
                     metaText.className = "text-xs font-semibold text-green-600";
@@ -1221,187 +1111,116 @@
                 metaText.textContent = metaContent;
 
                 contentDiv.appendChild(link);
-                contentDiv.appendChild(citationDetail); // Add new detailed citation
                 contentDiv.appendChild(metaText);
                 li.appendChild(contentDiv);
 
                 articlesList.appendChild(li);
             });
         }
+        
+        function resetChat(summary, articles) {
+            chatHistory = []; 
+            
+            // Context now uses the absolute citation ID (1-based index)
+            currentChatContext = `Summary:\n${summary}\n\nSummarized Articles:\n` +
+                articles.map((article, index) => {
+                    const citationID = index + 1;
+                    return `[ARTICLE ${citationID}] (PMID: ${article.pmid}, Citations: ${article.citationCount}): ${article.title}\nAbstract/Text: ${article.fullText || article.abstract}`;
+                }).join('\n\n');
 
-        /**
-         * Adds a chat message to the UI.
-         * @param {string} role 'user' or 'model'.
-         * @param {string} text The message text.
-         */
-        function addChatMessage(role, text) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `p-3 rounded-lg shadow-sm ${
-                role === 'user' ? 'bg-blue-100 self-end text-right ml-auto' : 'bg-gray-200 self-start text-left mr-auto'
-            }`;
-            messageDiv.style.maxWidth = '90%'; // Limit width
-            messageDiv.innerHTML = formatSummaryWithCitations(text); // Use the same formatter for chat too
-            chatHistoryUI.appendChild(messageDiv);
-            chatHistoryUI.scrollTop = chatHistoryUI.scrollHeight; // Auto-scroll to latest message
+            chatHistoryUI.innerHTML = `
+                <div class="text-gray-500 italic p-2 text-center border-b pb-4">
+                    Context updated. You can now ask questions about the ${articles.length} articles used in the summary above.
+                </div>`;
         }
 
-        /**
-         * Shows the loading spinner and message.
-         * @param {boolean} show Whether to show or hide the spinner.
-         * @param {string} message The message to display (optional).
-         */
-        function setLoading(show, message = "Loading...") {
-            if (show) {
+        async function handleChatSend() {
+            const prompt = chatInput.value.trim();
+            if (!prompt) return;
+
+            chatInput.value = '';
+            displayChatMessage(prompt, 'user');
+            chatHistory.push({ role: 'user', parts: [{ text: prompt }] });
+
+            chatSpinner.classList.remove('hidden');
+            chatSendButton.disabled = true;
+            chatInput.disabled = true;
+
+            try {
+                const response = await chatWithLLM(chatHistory, currentChatContext);
+                displayChatMessage(response, 'model');
+                chatHistory.push({ role: 'model', parts: [{ text: response }] });
+            } catch (error) {
+                console.error("Chat error:", error);
+                displayChatMessage(`Error: ${error.message}`, 'model', true);
+            } finally {
+                chatSpinner.classList.add('hidden');
+                chatSendButton.disabled = false;
+                chatInput.disabled = false;
+                chatInput.focus();
+            }
+        }
+        
+        function displayChatMessage(message, role, isError = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'p-3 rounded-lg';
+            
+            if (role === 'user') {
+                messageDiv.className += ' bg-gray-100 self-end';
+                messageDiv.textContent = message;
+            } else { // 'model'
+                messageDiv.className += ' bg-blue-50 self-start';
+                if (isError) {
+                    messageDiv.className = 'bg-red-100 text-red-700 p-3 rounded-lg';
+                }
+                // Poor man's markdown for bolding (e.g., [1])
+                message = message.replace(/\[(\d+)\]/g, '<strong>[$1]</strong>');
+                messageDiv.innerHTML = message.replace(/\n/g, '<br>');
+            }
+            
+            chatHistoryUI.appendChild(messageDiv);
+            chatHistoryUI.scrollTop = chatHistoryUI.scrollHeight; // Auto-scroll
+        }
+        
+        function setLoading(isLoading, message = "Processing...") {
+            const buttonsToDisable = [searchButton, applyFiltersButton, regenerateSummaryButton];
+            if (isLoading) {
                 loadingMessage.textContent = message;
                 loadingSpinner.classList.remove('hidden');
-                searchButton.disabled = true;
-                applyFiltersButton.disabled = true;
-                regenerateSummaryButton.disabled = true;
-                chatSendButton.disabled = true;
-                searchInput.disabled = true;
+                loadingSpinner.classList.add('flex');
+                buttonsToDisable.forEach(button => {
+                    button.disabled = true;
+                    button.classList.add('opacity-50', 'cursor-not-allowed');
+                });
             } else {
                 loadingSpinner.classList.add('hidden');
-                searchButton.disabled = false;
-                applyFiltersButton.disabled = false;
-                regenerateSummaryButton.disabled = false;
-                chatSendButton.disabled = false;
-                searchInput.disabled = false;
+                loadingSpinner.classList.remove('flex');
+                buttonsToDisable.forEach(button => {
+                    button.disabled = false;
+                    button.classList.remove('opacity-50', 'cursor-not-allowed');
+                });
+                // Special case: applyFiltersButton should remain disabled if no articles
+                if (originalArticles.length === 0) {
+                    applyFiltersButton.disabled = true;
+                    applyFiltersButton.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                // Special case: regenerateSummaryButton should remain disabled if no summary
+                if (includedArticlesForSummary.length === 0) {
+                    regenerateSummaryButton.disabled = true;
+                    regenerateSummaryButton.classList.add('opacity-50', 'cursor-not-allowed');
+                }
             }
         }
 
-        /**
-         * Displays an error message.
-         * @param {string} message The error message.
-         */
         function showError(message) {
             errorMessage.textContent = message;
             errorMessage.classList.remove('hidden');
         }
 
-        /**
-         * Hides the error message.
-         */
         function hideError() {
             errorMessage.classList.add('hidden');
         }
-/**
-         * Generates a shareable URL based on the current search state.
-         * Includes query, search scope, filters, summary type, language, and excluded PMIDs.
-         */
-        function generateShareableLink() {
-            const params = new URLSearchParams();
 
-            // Core search parameters
-            params.set('q', currentOriginalQuery);
-            params.set('scope', document.querySelector('input[name="searchScope"]:checked').value);
-
-            // Filter parameters
-            if (minYearInput.value) params.set('minYear', minYearInput.value);
-            if (minCitationCountInput.value) params.set('minCitations', minCitationCountInput.value);
-            
-            const selectedPubTypes = Array.from(pubTypeSelect.options)
-                                    .filter(option => option.selected && option.value !== 'All')
-                                    .map(option => option.value);
-            if (selectedPubTypes.length > 0) params.set('pubTypes', selectedPubTypes.join(','));
-            
-            if (sortBySelect.value !== 'relevance') params.set('sortBy', sortBySelect.value);
-
-            // Summary parameters
-            params.set('summaryType', document.querySelector('input[name="summaryType"]:checked').value);
-            params.set('lang', languageSelect.value);
-
-            // Excluded articles (only if any are explicitly excluded from the top SUMMARY_LIMIT)
-            const excludedPmids = filteredArticles
-                                    .slice(0, SUMMARY_LIMIT)
-                                    .filter(article => !includedArticlesForSummary.some(inc => inc.pmid === article.pmid))
-                                    .map(article => article.pmid);
-            if (excludedPmids.length > 0) {
-                params.set('exclude', excludedPmids.join(','));
-            }
-
-            const shareableUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
-            
-            // Copy to clipboard
-            navigator.clipboard.writeText(shareableUrl).then(() => {
-                alert("Shareable link copied to clipboard!\n" + shareableUrl);
-            }).catch(err => {
-                console.error("Failed to copy link:", err);
-                alert("Could not copy link. Please copy manually:\n" + shareableUrl);
-            });
-        }
-
-
-        /**
-         * Loads the application state from URL parameters on page load.
-         */
-        async function loadStateFromUrl() {
-            const params = new URLSearchParams(window.location.search);
-            const query = params.get('q');
-
-            if (query) {
-                searchInput.value = query;
-
-                // Restore search scope
-                const scope = params.get('scope') || 'balanced';
-                document.querySelector(`input[name="searchScope"][value="${scope}"]`).checked = true;
-
-                // Restore filter settings
-                if (params.has('minYear')) minYearInput.value = params.get('minYear');
-                if (params.has('minCitations')) minCitationCountInput.value = params.get('minCitations');
-                if (params.has('pubTypes')) {
-                    // Clear existing selections first if 'All' was default
-                    Array.from(pubTypeSelect.options).forEach(option => option.selected = false);
-                    params.get('pubTypes').split(',').forEach(type => {
-                        const option = Array.from(pubTypeSelect.options).find(opt => opt.value === type);
-                        if (option) option.selected = true;
-                    });
-                } else {
-                    // Ensure 'All' is selected if no specific types are in URL
-                    Array.from(pubTypeSelect.options).forEach(option => option.selected = (option.value === 'All'));
-                }
-                if (params.has('sortBy')) sortBySelect.value = params.get('sortBy');
-
-                // Restore summary type and language
-                const summaryType = params.get('summaryType') || 'brief';
-                document.querySelector(`input[name="summaryType"][value="${summaryType}"]`).checked = true;
-                if (params.has('lang')) languageSelect.value = params.get('lang');
-
-                // Perform initial search
-                await handleSearch();
-
-                // After handleSearch, filteredArticles and includedArticlesForSummary are populated.
-                // Now, apply exclusions from URL. This needs to happen AFTER initial summary.
-                if (params.has('exclude')) {
-                    const excludedPmidsFromUrl = params.get('exclude').split(',');
-                    
-                    // Temporarily disable the immediate re-summarize when exclusions are applied from URL
-                    // We will trigger a single re-summarize at the end.
-                    const originalExclusionToggle = currentHandleExclusionToggle;
-                    currentHandleExclusionToggle = async (event) => {}; // No-op during URL load
-
-                    excludedPmidsFromUrl.forEach(pmid => {
-                        const checkbox = document.querySelector(`.exclusion-checkbox[data-pmid="${pmid}"]`);
-                        if (checkbox) {
-                            checkbox.checked = true; // Mark as excluded
-                            // Manually update includedArticlesForSummary without triggering new summary
-                            includedArticlesForSummary = includedArticlesForSummary.filter(article => article.pmid !== pmid);
-                        }
-                    });
-
-                    // Re-render the article list with updated checkboxes
-                    displayArticlesList(filteredArticles);
-
-                    // Re-enable the original handler
-                    currentHandleExclusionToggle = originalExclusionToggle;
-
-                    // Finally, trigger one regeneration of the summary with the corrected includedArticlesForSummary
-                    await handleRegenerateSummary(true);
-                }
-            }
-        }
-
-        // --- Initial Load ---
-        document.addEventListener('DOMContentLoaded', loadStateFromUrl);
     </script>
 </body>
 </html>
