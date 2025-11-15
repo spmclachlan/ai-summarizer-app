@@ -1,0 +1,36 @@
+*** Begin Patch
+*** Update File: index.html
+@@
+-        // ==================== CONFIGURATION ====================
+-        const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
+-        const SUMMARY_LIMIT = 20;
+-        const ESEARCH_LIMIT = 100;
+-        const MAP_REDUCE_CHUNK_SIZE = 5;
+-        
+-        // CORS Proxy configuration - using AllOrigins (free, reliable service)
+-        const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+-        
+-        const ESEARCH_URL = `${NCBI_BASE_URL}esearch.fcgi?db=pubmed&retmode=json&retmax=${ESEARCH_LIMIT}&sort=relevance`;
+-        const EFETCH_URL = `${NCBI_BASE_URL}efetch.fcgi?db=pubmed&retmode=xml`;
+-        const ESUMMARY_URL = `${NCBI_BASE_URL}esummary.fcgi?db=pubmed&retmode=json`;
+-        const PMC_EFETCH_URL = `${NCBI_BASE_URL}efetch.fcgi?db=pmc&retmode=xml&id=`;
+-        const ICITE_API_URL = 'https://icite.od.nih.gov/api/pubs';
+-        
+-        const GEMINI_API_KEY = "AIzaSyAJclRSkKNWVcVCuxZZDFnYAF-VqUqYYAM";
+-        const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
+-        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
++        // ==================== CONFIGURATION ====================
++        // Use server-side proxy endpoints to avoid CORS and to keep API keys secret.
++        const SERVER_API_ROOT = ''; // same origin (empty) or set to your server host, e.g. 'https://your-server.example.com'
++        const SUMMARY_LIMIT = 20;
++        const ESEARCH_LIMIT = 100;
++        const MAP_REDUCE_CHUNK_SIZE = 5;
++
++        // Note: old public CORS proxy and client-side GEMINI key removed for security.
++        const ESEARCH_URL = `${SERVER_API_ROOT}/api/esearch?retmax=${ESEARCH_LIMIT}`;
++        const EFETCH_URL = `${SERVER_API_ROOT}/api/efetch`; // expects ?id=...
++        const ESUMMARY_URL = `${SERVER_API_ROOT}/api/esummary`; // expects ?id=...
++        const PMC_EFETCH_URL = `${SERVER_API_ROOT}/api/pmc?id=`; // server handles PMC id formatting
++        const ICITE_API_URL = `${SERVER_API_ROOT}/api/icite`; // POST { pmids: [] }
++        const GEMINI_API_URL = `${SERVER_API_ROOT}/api/gemini`; // POST forwarded server-side (key is server-side)
+*** End Patch
