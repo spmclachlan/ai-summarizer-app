@@ -55,7 +55,7 @@
             <p class="text-gray-500 mt-2">Enter your query to get an AI-powered search, summary, and chat.</p>
         </header>
         
-        <div class="flex flex-col sm:flex-row flex-wrap gap-y-2 gap-x-6 items-center mb-4 p-3 bg-blue-50/50 rounded-lg border border-blue-0">
+        <div class="flex flex-col sm:flex-row flex-wrap gap-y-2 gap-x-6 items-center mb-4 p-3 bg-blue-50/50 rounded-lg border border-blue-200">
             <span class="font-medium text-gray-700 whitespace-nowrap">Search Scope:</span>
             
             <label class="flex items-center gap-1 cursor-pointer">
@@ -86,7 +86,7 @@
         <div class="flex justify-end mb-4">
             <button 
                 id="searchButton"
-                class="w-full sm:w-auto bg-blue-600 text-white font-semibold px-6 py-3 rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-0"
+                class="w-full sm:w-auto bg-blue-600 text-white font-semibold px-6 py-3 rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200"
             >
                 Search & Summarize
             </button>
@@ -106,27 +106,27 @@
 
                     <div class="md:col-span-2 space-y-8">
                         
-                        <section id="querySections" class="pb-2 space-y-4 border-b border-gray-0">
+                        <section id="querySections" class="pb-2 space-y-4 border-b border-gray-200">
                             <div>
                                 <h2 class="text-xl font-semibold text-gray-800">Original Query:</h2>
-                                <p id="originalQueryText" class="text-gray-600 text-lg break-words mt-1 p-2 bg-gray-50 rounded-lg border border-gray-0 shadow-inner"></p>
+                                <p id="originalQueryText" class="text-gray-600 text-lg break-words mt-1 p-2 bg-gray-50 rounded-lg border border-gray-200 shadow-inner"></p>
                             </div>
 
                             <button id="togglePubmedQueryButton" class="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center transition-colors">
                                 <span id="pubmedQueryToggleText">Show Optimized Search Strategy</span>
-                                <svg id="pubmedQueryToggleIcon" class="w-4 h-4 ml-1 transition-transform duration-300 transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/00/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                <svg id="pubmedQueryToggleIcon" class="w-4 h-4 ml-1 transition-transform duration-300 transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                             </button>
 
-                            <div id="translatedQuerySection" class="hidden border border-blue-0 bg-blue-50 p-3 rounded-lg">
+                            <div id="translatedQuerySection" class="hidden border border-blue-200 bg-blue-50 p-3 rounded-lg">
                                 <h2 class="text-xl font-semibold text-gray-800">PubMed Search Used (Optimized with MeSH):</h2>
                                 <p id="translatedQueryText" class="text-blue-700 text-lg font-mono break-words mt-1"></p>
                             </div>
                         </section>
 
-                        <section id="filterToggle" class="bg-gray-50 p-3 rounded-lg border border-gray-0">
+                        <section id="filterToggle" class="bg-gray-50 p-3 rounded-lg border border-gray-200">
                             <button id="toggleFilterButton" class="w-full text-left font-semibold text-gray-700 hover:text-blue-600 transition-colors flex justify-between items-center">
                                 <span id="filterStatusText">Filter & Sort Articles (0 Applied / 0 Total)</span>
-                                <svg id="filterToggleIcon" class="w-5 h-5 transition-transform duration-300 transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/00/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                <svg id="filterToggleIcon" class="w-5 h-5 transition-transform duration-300 transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
                             </button>
                             
                             <div id="filterPanel" class="filter-section">
@@ -134,7 +134,7 @@
                                     
                                     <div class="flex flex-col">
                                         <label for="minYearInput" class="text-sm font-medium text-gray-700 mb-1">Min Year</label>
-                                        <input type="number" id="minYearInput" min="1900" max="25" placeholder="e.g., " class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                                        <input type="number" id="minYearInput" min="1900" max="2025" placeholder="e.g., 2020" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
                                     </div>
                                     
                                     <div class="flex flex-col">
@@ -170,7 +170,7 @@
                                 
                                 <button 
                                     id="applyFiltersButton"
-                                    class="mt-4 w-full bg-green-600 text-white font-semibold py-2 rounded-lg shadow-md hover:bg-green-700 transition-all duration-0"
+                                    class="mt-4 w-full bg-green-600 text-white font-semibold py-2 rounded-lg shadow-md hover:bg-green-700 transition-all duration-200"
                                 >
                                     Apply Filters & Re-Summarize
                                 </button>
@@ -178,7 +178,7 @@
                         </section>
 
                         <section id="summarySection">
-                            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-0 pb-2 mb-4">
+                            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-200 pb-2 mb-4">
                                 AI Summary (with Citations)
                             </h2>
                             
@@ -223,7 +223,7 @@
                                 
                                 <button 
                                     id="regenerateSummaryButton"
-                                    class="w-full sm:w-auto bg-gray-600 text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-0 mt-4 sm:mt-0"
+                                    class="w-full sm:w-auto bg-gray-600 text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-200 mt-4 sm:mt-0"
                                 >
                                     Regenerate Summary
                                 </button>
