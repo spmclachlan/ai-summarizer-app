@@ -238,7 +238,7 @@
                             </h2>
                             <div class="text-sm font-semibold text-red-600 mb-3" id="exclusionNote">
                                 <span class="p-1 rounded bg-red-100 border border-red-300">
-                                    **Tip:** For the top 15 articles, check the box to **exclude** a paper from the summary.
+                                    **Tip:** Check the box to **exclude** a paper from the summary. Green = Full Text, Gray = Abstract Only.
                                 </span>
                             </div>
                             <ol id="articlesList" class="list-none space-y-4">
@@ -289,10 +289,13 @@
         const ESEARCH_LIMIT = 100;
         const MAP_REDUCE_CHUNK_SIZE = 5;
         
+        // CORS Proxy configuration - using AllOrigins (free, reliable service)
+        const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+        
         const ESEARCH_URL = `${NCBI_BASE_URL}esearch.fcgi?db=pubmed&retmode=json&retmax=${ESEARCH_LIMIT}&sort=relevance`;
         const EFETCH_URL = `${NCBI_BASE_URL}efetch.fcgi?db=pubmed&retmode=xml`;
+        const ESUMMARY_URL = `${NCBI_BASE_URL}esummary.fcgi?db=pubmed&retmode=json`;
         const PMC_EFETCH_URL = `${NCBI_BASE_URL}efetch.fcgi?db=pmc&retmode=xml&id=`;
-        // Using NIH iCite API for better citation counts
         const ICITE_API_URL = 'https://icite.od.nih.gov/api/pubs';
         
         const GEMINI_API_KEY = "AIzaSyAJclRSkKNWVcVCuxZZDFnYAF-VqUqYYAM";
@@ -421,13 +424,15 @@
             hideError();
             resultsContainer.classList.add('hidden');
             
-            // Reset state
+            // Reset state completely - including clearing the summary
             originalArticles = [];
             filteredArticles = [];
             includedArticlesForSummary = [];
             lastEnglishSummary = '';
             chatHistory = [];
             currentOriginalQuery = originalQuery;
+            summaryText.innerHTML = ''; // Clear previous summary
+            articlesList.innerHTML = ''; // Clear previous articles
             
             translatedQuerySection.classList.add('hidden');
             pubmedQueryToggleText.textContent = 'Show Optimized Search Strategy';
@@ -456,7 +461,7 @@
                     return;
                 }
                 
-                setLoading(true, `Fetching details for ${pmids.length} articles...`);
+                setLoading(true, `Fetching details and citation counts for ${pmids.length} articles...`);
                 
                 // Step 3: Fetch article details (fully parallelized)
                 const articles = await fetchArticleDetails(pmids);
@@ -472,7 +477,6 @@
             } catch (error) {
                 console.error("Search failed:", error);
                 showError(`An error occurred: ${error.message}`);
-            } finally {
                 setLoading(false);
             }
         }
@@ -777,13 +781,17 @@
         }
         
         /**
-         * Optimized full text fetching with early exit on errors
+         * Fetch full text from PMC using CORS proxy
          */
         async function fetchFullText(pmcid) {
             const url = `${PMC_EFETCH_URL}${pmcid}`;
             try {
-                const response = await fetch(url);
-                if (!response.ok) return null;
+                // Use CORS proxy to fetch PMC full text
+                const response = await fetch(CORS_PROXY + encodeURIComponent(url));
+                if (!response.ok) {
+                    console.log(`PMC fetch failed for ${pmcid}: status ${response.status}`);
+                    return null;
+                }
                 
                 const xmlText = await response.text();
                 const parser = new DOMParser();
@@ -796,44 +804,53 @@
                     if (fullText.length > MAX_CHARS) {
                         fullText = fullText.substring(0, MAX_CHARS) + '... [Full Text Truncated]';
                     }
+                    console.log(`Successfully fetched full text for PMC${pmcid} (${fullText.length} chars)`);
                     return fullText;
                 }
                 return null;
             } catch (error) {
+                console.warn(`Error fetching full text for PMC${pmcid}:`, error.message);
                 return null;
             }
         }
         
         /**
-         * Optimized citation count fetching using NIH iCite API
+         * Fetch citation counts using NIH iCite API through CORS proxy
          * This provides comprehensive citation data for all PubMed articles
          */
         async function fetchCitationCounts(pmids) {
             if (pmids.length === 0) return {};
             
             try {
-                // iCite API accepts up to 1000 PMIDs per request
-                const response = await fetch(ICITE_API_URL, {
+                // Convert PMIDs to numbers as iCite expects numeric values
+                const numericPmids = pmids.map(id => parseInt(id));
+                
+                // Use CORS proxy for iCite API
+                const response = await fetch(CORS_PROXY + encodeURIComponent(ICITE_API_URL), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ pmids: pmids })
+                    body: JSON.stringify({ pmids: numericPmids })
                 });
                 
                 if (!response.ok) {
-                    console.warn("iCite API failed, returning zero counts");
-                    return pmids.reduce((acc, pmid) => ({ ...acc, [pmid]: 0 }), {});
+                    console.warn(`iCite API failed with status ${response.status}, falling back to ESummary`);
+                    return await fetchCitationCountsFallback(pmids);
                 }
                 
                 const data = await response.json();
                 const counts = {};
                 
                 // iCite returns citation_count for each article
-                if (data.data) {
+                if (data.data && Array.isArray(data.data)) {
                     data.data.forEach(article => {
                         if (article.pmid) {
-                            counts[article.pmid] = article.citation_count || 0;
+                            counts[String(article.pmid)] = article.citation_count || 0;
                         }
                     });
+                    console.log(`iCite returned citation data for ${data.data.length} articles`);
+                } else {
+                    console.warn("iCite returned unexpected data, falling back to ESummary");
+                    return await fetchCitationCountsFallback(pmids);
                 }
                 
                 // Fill in any missing PMIDs with 0
@@ -845,7 +862,57 @@
                 
                 return counts;
             } catch (error) {
-                console.error("Error fetching citation counts from iCite:", error.message);
+                console.error("Error fetching citation counts from iCite:", error);
+                console.log("Falling back to ESummary for citation counts");
+                return await fetchCitationCountsFallback(pmids);
+            }
+        }
+        
+        /**
+         * Fallback citation fetching using ESummary (doesn't need CORS proxy)
+         */
+        async function fetchCitationCountsFallback(pmids) {
+            if (pmids.length === 0) return {};
+            
+            try {
+                const chunkSize = 200;
+                const chunks = [];
+                for (let i = 0; i < pmids.length; i += chunkSize) {
+                    chunks.push(pmids.slice(i, i + chunkSize));
+                }
+                
+                const allCounts = {};
+                
+                for (const chunk of chunks) {
+                    const pmidString = chunk.join(',');
+                    const url = `${ESUMMARY_URL}&id=${pmidString}`;
+                    
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        chunk.forEach(pmid => allCounts[pmid] = 0);
+                        continue;
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data.result) {
+                        chunk.forEach(pmid => {
+                            const articleData = data.result[pmid];
+                            if (articleData) {
+                                const pmcRefCount = parseInt(articleData.pmc_refcount) || 0;
+                                allCounts[pmid] = pmcRefCount;
+                            } else {
+                                allCounts[pmid] = 0;
+                            }
+                        });
+                    }
+                }
+                
+                console.log(`ESummary fallback: Retrieved citation counts for ${Object.keys(allCounts).length} articles`);
+                return allCounts;
+                
+            } catch (error) {
+                console.error("Error in ESummary fallback:", error);
                 return pmids.reduce((acc, pmid) => ({ ...acc, [pmid]: 0 }), {});
             }
         }
@@ -903,21 +970,27 @@
         
         /**
          * Fully parallelized article detail fetching
-         * KEY OPTIMIZATION: Fetch XML, citations, and full texts all in parallel
+         * Fetches XML, citation counts, and full texts all in parallel
          */
         async function fetchArticleDetails(pmids) {
             const pmidString = pmids.join(',');
             const url = `${EFETCH_URL}&id=${pmidString}`;
             
-            // Start all requests in parallel
-            const [xmlResponse, citationCounts] = await Promise.all([
-                fetch(url),
-                fetchCitationCounts(pmids)
-            ]);
+            console.log(`Fetching details for ${pmids.length} articles...`);
             
-            if (!xmlResponse.ok) throw new Error(`PubMed fetch failed with status ${xmlResponse.status}`);
+            // Start XML fetch and citation fetch in parallel
+            const xmlPromise = fetch(url).then(response => {
+                if (!response.ok) throw new Error(`PubMed fetch failed with status ${response.status}`);
+                return response.text();
+            });
             
-            const xmlText = await xmlResponse.text();
+            const citationPromise = fetchCitationCounts(pmids);
+            
+            // Wait for both to complete
+            const [xmlText, citationCounts] = await Promise.all([xmlPromise, citationPromise]);
+            
+            console.log(`Citation counts retrieved for ${Object.keys(citationCounts).length} articles`);
+            
             let articles = parsePubMedXML(xmlText);
             
             // Attach citation counts and fetch full texts in parallel
@@ -930,6 +1003,9 @@
                     return article;
                 })
             );
+            
+            const fullTextCount = enrichedArticles.filter(a => a.fullText).length;
+            console.log(`Retrieved full text for ${fullTextCount}/${articles.length} articles`);
             
             return enrichedArticles;
         }
