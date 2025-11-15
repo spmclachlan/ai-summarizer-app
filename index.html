@@ -182,15 +182,6 @@
                                 AI Summary (with Citations)
                             </h2>
                             
-                            <!-- Scientific Quality Indicators -->
-                            <div id="qualityIndicators" class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg hidden">
-                                <h3 class="font-semibold text-amber-800 mb-2 flex items-center gap-2">
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                                    Evidence Quality Assessment
-                                </h3>
-                                <div id="qualityMetrics" class="space-y-2 text-sm text-amber-900"></div>
-                            </div>
-                            
                             <div class="flex flex-col sm:flex-row justify-between items-start mb-4 gap-4">
                                 <div class="flex flex-wrap gap-4 items-center" id="summaryTypeContainer">
                                     <span class="font-medium text-gray-700">Summary Depth:</span>
@@ -298,14 +289,11 @@
         const ESEARCH_LIMIT = 100;
         const MAP_REDUCE_CHUNK_SIZE = 5;
         
-        // Scientific rigor settings
-        const MINIMUM_CITATION_THRESHOLD = 5; // Warn if articles have < 5 citations (unless very recent)
-        const RECENT_ARTICLE_YEARS = 2; // Articles from last 2 years exempt from citation threshold
-        
         const ESEARCH_URL = `${NCBI_BASE_URL}esearch.fcgi?db=pubmed&retmode=json&retmax=${ESEARCH_LIMIT}&sort=relevance`;
         const EFETCH_URL = `${NCBI_BASE_URL}efetch.fcgi?db=pubmed&retmode=xml`;
         const PMC_EFETCH_URL = `${NCBI_BASE_URL}efetch.fcgi?db=pmc&retmode=xml&id=`;
-        const ELINK_URL = `${NCBI_BASE_URL}elink.fcgi?dbfrom=pubmed&db=pubmed&linkname=pubmed_pubmed_citedby&retmode=json`;
+        // Using NIH iCite API for better citation counts
+        const ICITE_API_URL = 'https://icite.od.nih.gov/api/pubs';
         
         const GEMINI_API_KEY = "AIzaSyAJclRSkKNWVcVCuxZZDFnYAF-VqUqYYAM";
         const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
@@ -584,13 +572,9 @@
         
         /**
          * Optimized Map-Reduce with full parallelization and caching
-         * Enhanced with scientific quality assessment
          */
         async function summarizeWithMapReduce(articles, summaryType, originalQuery) {
             if (articles.length === 0) return "No articles were included in the summary generation process.";
-            
-            // Assess evidence quality before summarizing
-            assessEvidenceQuality(articles);
             
             // Create chunks
             const chunks = [];
@@ -605,16 +589,7 @@
                 const globalStartIndex = i * MAP_REDUCE_CHUNK_SIZE;
                 const textToSummarize = prepareSummaryContext(chunk, globalStartIndex);
                 
-                const mapSystemPrompt = `You are a medical research assistant trained in critical appraisal. Your task is to read the following research articles (labeled [ARTICLE N] where N is the final citation ID 1 through ${articles.length}) and generate a concise **list of key findings, methodologies, and conclusions** for this small set. 
-
-**CRITICAL APPRAISAL REQUIREMENTS:**
-- Note the study design (RCT, observational, meta-analysis, etc.)
-- Identify sample sizes when mentioned
-- Flag any limitations or conflicts of interest mentioned
-- Note statistical significance (p-values, confidence intervals) when reported
-- Distinguish between association and causation claims
-
-**Crucially, you MUST preserve the full citation ID (e.g., [ARTICLE 1] or [ARTICLE 6]) after each finding.** Your output should be a single, detailed, bulleted list. Respond ONLY with the list.`;
+                const mapSystemPrompt = `You are a medical research assistant. Your task is to read the following research articles (labeled [ARTICLE N] where N is the final citation ID 1 through ${articles.length}) and generate a concise **list of key findings, methodologies, and conclusions** for this small set. **Crucially, you MUST preserve the full citation ID (e.g., [ARTICLE 1] or [ARTICLE 6]) after each finding.** Your output should be a single, detailed, bulleted list. Respond ONLY with the list.`;
                 
                 return callGeminiApi({
                     contents: [{ parts: [{ text: textToSummarize }] }],
@@ -640,6 +615,8 @@
         function prepareSummaryContext(articles, globalStartIndex) {
             return articles.map((article, index) => {
                 const citationID = globalStartIndex + index + 1;
+                // Store the citation ID on the article object for later reference
+                article.citationID = citationID;
                 let text = `[ARTICLE ${citationID}] (PMID: ${article.pmid}, Citations: ${article.citationCount}, Year: ${article.year}): ${article.title}\n`;
                 if (article.fullText) {
                     text += `--- FULL TEXT (Truncated) ---\n${article.fullText}\n--- END FULL TEXT ---\n`;
@@ -654,59 +631,37 @@
             const focusInstruction = `Your synthesis MUST specifically address and directly answer the original research question: "${originalQuery}".`;
             const citationInstruction = `When using a citation, convert the source ID [ARTICLE N] into the final citation format [N] (e.g., [ARTICLE 1, ARTICLE 3] becomes [1, 3]).`;
             
-            // Scientific rigor instruction for all summary types
-            const scientificRigorInstruction = `
-**CRITICAL SCIENTIFIC REQUIREMENTS:**
-- Clearly distinguish between correlation and causation
-- Note when evidence is preliminary, contradictory, or limited
-- Highlight the quality of evidence (e.g., "based on RCTs" vs "based on observational data")
-- Mention important limitations (small sample sizes, lack of replication, conflicts of interest)
-- Avoid overstating conclusions beyond what the evidence supports
-- When studies conflict, present both perspectives fairly
-- Use precise, evidence-based language (e.g., "suggests" vs "proves", "associated with" vs "causes")`;
-            
             if (summaryType === 'breakdown') {
-                return `You are a medical research synthesizer trained in evidence-based medicine. You have been given several lists of key findings (intermediate summaries). ${focusInstruction} Your task is to unify all these points into a single, highly **structured summary** using clear Markdown headings (##). You MUST adhere to this structure:
+                return `You are a medical research synthesizer. You have been given several lists of key findings (intermediate summaries). ${focusInstruction} Your task is to unify all these points into a single, highly **structured summary** using clear Markdown headings (##). You MUST adhere to this structure:
                 
                 ## 1. Research Overview
                 Briefly state the research question and main conclusion derived from the articles.
                 
                 ## 2. Methodology & Study Design
-                Describe the types of studies included (RCTs, meta-analyses, observational), sample sizes, and key interventions/exposures. Note the overall strength of evidence.
+                Describe the types of studies included, sample sizes, and key intervention/exposure.
                 
                 ## 3. Key Findings
-                List the principal results, focusing on the most important outcomes that relate to the original query. Clearly distinguish between statistically significant and non-significant findings.
+                List the principal results, focusing on the most important outcomes that relate to the original query.
                 
-                ## 4. Limitations & Conflicts
-                Identify major limitations, contradictions between studies, publication bias concerns, and any noted conflicts of interest.
+                ## 4. Conclusion & Implications
+                Synthesize the overall conclusion and discuss the practical implications of the findings.
                 
-                ## 5. Conclusion & Clinical Implications
-                Synthesize the overall conclusion with appropriate epistemic humility. Discuss practical implications while acknowledging uncertainty.
-                
-                ${scientificRigorInstruction}
                 ${citationInstruction} You MUST include the final citation ID(s) in brackets, like [1, 3], after every derived claim.`;
             } else if (summaryType === 'technical') {
-                return `You are an expert research scientist trained in critical appraisal. You have been given several lists of key findings. ${focusInstruction} Your task is to unify all these points into a single, highly **technically accurate and complete** summary, structured into four distinct sections.
-                
-                1. **Methods & Design:** Describe the primary study designs (RCTs, cohort studies, case-controls, meta-analyses), sample sizes, dosing regimens, duration, and key analytical techniques. Assess risk of bias.
-                
-                2. **Key Results:** State the principal findings, focusing on **statistically significant outcomes** with effect sizes, confidence intervals, and p-values where available. Note both positive and negative results.
-                
-                3. **Limitations & Heterogeneity:** Explicitly mention methodological limitations, between-study heterogeneity, publication bias concerns, small sample sizes, lack of blinding, confounding variables, and conflicts of interest.
-                
-                4. **Conclusion & Research Gaps:** Synthesize the overall conclusion with appropriate confidence levels. Identify areas needing further research.
-                
-                ${scientificRigorInstruction}
+                return `You are an expert research scientist. You have been given several lists of key findings. ${focusInstruction} Your task is to unify all these points into a single, highly **technically accurate and complete** summary, structured into three distinct sections.
+                1. **Methods & Design:** Describe the primary study designs, sample sizes, dosage, and key analytical techniques found in the lists.
+                2. **Key Results:** State the principal findings, focusing on **statistically significant outcomes** and incorporating numerical data where present.
+                3. **Conclusion & Limitations:** Synthesize the overall conclusion and explicitly mention any methodological limitations.
                 You MUST use highly technical language. ${citationInstruction} Strictly adhere to the final citation format [1, 3] after every derived claim.`;
             }
             
             const basePrompt = {
-                'deep': `deep, comprehensive, multi-paragraph summary. Synthesize the key findings, methodologies, trends, and conclusions. Distinguish between strong and weak evidence. Note contradictions and limitations. ${focusInstruction} ${scientificRigorInstruction} ${citationInstruction}`,
-                'layman': `concise, easy-to-understand summary in **layman's terms**. Avoid technical jargon, use simple language. However, maintain scientific accuracy and acknowledge uncertainty (e.g., "early research suggests" rather than "proves"). ${focusInstruction} ${citationInstruction}`,
-                'brief': `brief, one-paragraph summary. Synthesize the key findings and conclusions while maintaining scientific precision. Note if evidence is preliminary or limited. ${focusInstruction} ${scientificRigorInstruction} ${citationInstruction}`
-            }[summaryType] || `brief, one-paragraph summary. Synthesize the key findings and conclusions. ${focusInstruction} ${scientificRigorInstruction} ${citationInstruction}`;
+                'deep': `deep, comprehensive, multi-paragraph summary. Synthesize the key findings, methodologies, trends, and conclusions. ${focusInstruction} ${citationInstruction}`,
+                'layman': `concise, easy-to-understand summary in **layman's terms**. Avoid technical jargon, use simple language. ${focusInstruction} ${citationInstruction}`,
+                'brief': `brief, one-paragraph summary. Synthesize the key findings and conclusions. ${focusInstruction} ${citationInstruction}`
+            }[summaryType] || `brief, one-paragraph summary. Synthesize the key findings and conclusions. ${focusInstruction} ${citationInstruction}`;
             
-            return `You are a specialized medical research assistant trained in evidence-based medicine. You have been given several lists of key findings (intermediate summaries). Your task is to unify all these points into a single, cohesive, and ${basePrompt} Whenever you state a specific finding or conclusion derived from the intermediate lists, you MUST follow that statement immediately with the final citation ID(s) in brackets, like [1, 3] or [2].`;
+            return `You are a specialized medical research assistant. You have been given several lists of key findings (intermediate summaries). Your task is to unify all these points into a single, cohesive, and ${basePrompt} Whenever you state a specific finding or conclusion derived from the intermediate lists, you MUST follow that statement immediately with the final citation ID(s) in brackets, like [1, 3] or [2].`;
         }
         
         async function translateQuery(query, searchScope) {
@@ -810,111 +765,6 @@
             throw new Error("LLM request failed after multiple retries.");
         }
         
-        // ==================== SCIENTIFIC QUALITY ASSESSMENT ====================
-        
-        /**
-         * Assesses and displays evidence quality metrics
-         */
-        function assessEvidenceQuality(articles) {
-            const currentYear = new Date().getFullYear();
-            const qualityIndicators = document.getElementById('qualityIndicators');
-            const qualityMetrics = document.getElementById('qualityMetrics');
-            
-            // Calculate quality metrics
-            const studyTypes = {
-                'Meta-Analysis': 0,
-                'Systematic Review': 0,
-                'Randomized Controlled Trial': 0,
-                'Clinical Trial': 0,
-                'Cohort Study': 0,
-                'Case-Control': 0,
-                'Case Report': 0,
-                'Review': 0,
-                'Other': 0
-            };
-            
-            let lowCitationCount = 0;
-            let recentArticles = 0;
-            let oldArticles = 0;
-            let totalCitations = 0;
-            let hasFullText = 0;
-            
-            articles.forEach(article => {
-                // Categorize study types
-                const pubType = article.publicationType.toLowerCase();
-                if (pubType.includes('meta-analysis')) studyTypes['Meta-Analysis']++;
-                else if (pubType.includes('systematic review')) studyTypes['Systematic Review']++;
-                else if (pubType.includes('randomized controlled trial')) studyTypes['Randomized Controlled Trial']++;
-                else if (pubType.includes('clinical trial')) studyTypes['Clinical Trial']++;
-                else if (pubType.includes('cohort')) studyTypes['Cohort Study']++;
-                else if (pubType.includes('case-control')) studyTypes['Case-Control']++;
-                else if (pubType.includes('case report')) studyTypes['Case Report']++;
-                else if (pubType.includes('review')) studyTypes['Review']++;
-                else studyTypes['Other']++;
-                
-                // Citation analysis
-                totalCitations += article.citationCount;
-                const articleAge = currentYear - article.year;
-                
-                if (articleAge <= RECENT_ARTICLE_YEARS) {
-                    recentArticles++;
-                } else if (article.citationCount < MINIMUM_CITATION_THRESHOLD) {
-                    lowCitationCount++;
-                }
-                
-                if (articleAge > 10) oldArticles++;
-                if (article.fullText) hasFullText++;
-            });
-            
-            const avgCitations = (totalCitations / articles.length).toFixed(1);
-            
-            // Build quality assessment HTML
-            let metricsHTML = '';
-            
-            // Study design pyramid (hierarchy of evidence)
-            const highQualityCount = studyTypes['Meta-Analysis'] + studyTypes['Systematic Review'] + studyTypes['Randomized Controlled Trial'];
-            const mediumQualityCount = studyTypes['Clinical Trial'] + studyTypes['Cohort Study'];
-            const lowQualityCount = studyTypes['Case-Control'] + studyTypes['Case Report'];
-            
-            if (highQualityCount > articles.length * 0.5) {
-                metricsHTML += `<div class="flex items-start gap-2"><span class="text-green-600 font-semibold">✓</span><span><strong>Strong evidence base:</strong> ${highQualityCount} high-quality studies (RCTs, meta-analyses, systematic reviews)</span></div>`;
-            } else if (highQualityCount > 0) {
-                metricsHTML += `<div class="flex items-start gap-2"><span class="text-amber-600 font-semibold">⚠</span><span><strong>Mixed evidence quality:</strong> ${highQualityCount} high-quality studies, ${mediumQualityCount + lowQualityCount} lower-quality studies</span></div>`;
-            } else {
-                metricsHTML += `<div class="flex items-start gap-2"><span class="text-red-600 font-semibold">⚠</span><span><strong>Limited high-quality evidence:</strong> No RCTs or meta-analyses included. Results based on observational data.</span></div>`;
-            }
-            
-            // Citation metrics
-            if (avgCitations < 10 && lowCitationCount > articles.length * 0.3) {
-                metricsHTML += `<div class="flex items-start gap-2"><span class="text-amber-600 font-semibold">⚠</span><span><strong>Low citation impact:</strong> ${lowCitationCount} articles have fewer than ${MINIMUM_CITATION_THRESHOLD} citations (avg: ${avgCitations} citations). Findings may not be well-replicated.</span></div>`;
-            } else if (avgCitations >= 50) {
-                metricsHTML += `<div class="flex items-start gap-2"><span class="text-green-600 font-semibold">✓</span><span><strong>High impact evidence:</strong> Average ${avgCitations} citations per article indicates well-established findings</span></div>`;
-            }
-            
-            // Recency
-            if (recentArticles > articles.length * 0.5) {
-                metricsHTML += `<div class="flex items-start gap-2"><span class="text-green-600 font-semibold">✓</span><span><strong>Current evidence:</strong> ${recentArticles} recent articles (last ${RECENT_ARTICLE_YEARS} years)</span></div>`;
-            } else if (oldArticles > articles.length * 0.5) {
-                metricsHTML += `<div class="flex items-start gap-2"><span class="text-amber-600 font-semibold">⚠</span><span><strong>Dated evidence:</strong> ${oldArticles} articles are >10 years old. Consider if findings remain current.</span></div>`;
-            }
-            
-            // Full text availability
-            if (hasFullText < articles.length * 0.2) {
-                metricsHTML += `<div class="flex items-start gap-2"><span class="text-amber-600 font-semibold">⚠</span><span><strong>Limited full text access:</strong> Only ${hasFullText} articles with full text available. Summary based primarily on abstracts.</span></div>`;
-            } else if (hasFullText > articles.length * 0.5) {
-                metricsHTML += `<div class="flex items-start gap-2"><span class="text-green-600 font-semibold">✓</span><span><strong>Good full text coverage:</strong> ${hasFullText} articles analyzed with complete text</span></div>`;
-            }
-            
-            // Sample size warning (if we had this data, we'd add it)
-            // Publication bias warning for small samples
-            if (articles.length < 10) {
-                metricsHTML += `<div class="flex items-start gap-2"><span class="text-amber-600 font-semibold">⚠</span><span><strong>Small evidence base:</strong> Only ${articles.length} articles found. Results may be subject to publication bias or missing perspectives.</span></div>`;
-            }
-            
-            qualityMetrics.innerHTML = metricsHTML;
-            qualityIndicators.classList.remove('hidden');
-        }
-        
         // ==================== PUBMED FUNCTIONS (OPTIMIZED) ====================
         
         async function searchPubMed(query) {
@@ -955,35 +805,47 @@
         }
         
         /**
-         * Optimized citation count fetching with better error handling
+         * Optimized citation count fetching using NIH iCite API
+         * This provides comprehensive citation data for all PubMed articles
          */
         async function fetchCitationCounts(pmids) {
             if (pmids.length === 0) return {};
             
-            const pmidString = pmids.join(',');
-            const url = `${ELINK_URL}&id=${pmidString}`;
-            
             try {
-                const response = await fetch(url);
+                // iCite API accepts up to 1000 PMIDs per request
+                const response = await fetch(ICITE_API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pmids: pmids })
+                });
+                
                 if (!response.ok) {
-                    console.warn("eLink failed, returning zero counts");
+                    console.warn("iCite API failed, returning zero counts");
                     return pmids.reduce((acc, pmid) => ({ ...acc, [pmid]: 0 }), {});
                 }
                 
                 const data = await response.json();
                 const counts = {};
                 
-                data.linksets?.forEach(linkset => {
-                    const pmid = linkset.ids?.[0];
-                    if (pmid) {
-                        const citedByLink = linkset.linksetdbs?.find(db => db.linkname === 'pubmed_pubmed_citedby');
-                        counts[pmid] = citedByLink?.links?.length || 0;
+                // iCite returns citation_count for each article
+                if (data.data) {
+                    data.data.forEach(article => {
+                        if (article.pmid) {
+                            counts[article.pmid] = article.citation_count || 0;
+                        }
+                    });
+                }
+                
+                // Fill in any missing PMIDs with 0
+                pmids.forEach(pmid => {
+                    if (!(pmid in counts)) {
+                        counts[pmid] = 0;
                     }
                 });
                 
                 return counts;
             } catch (error) {
-                console.error("Error fetching citation counts:", error.message);
+                console.error("Error fetching citation counts from iCite:", error.message);
                 return pmids.reduce((acc, pmid) => ({ ...acc, [pmid]: 0 }), {});
             }
         }
@@ -1090,14 +952,25 @@
         
         /**
          * Optimized article list display with document fragment for better performance
+         * Now correctly shows citation numbers based on includedArticlesForSummary
          */
         function displayArticlesList(currentFilteredArticles) {
             const fragment = document.createDocumentFragment();
             
             currentFilteredArticles.forEach((article, index) => {
                 const isIncluded = includedArticlesForSummary.some(a => a.pmid === article.pmid);
+                
+                // Find the actual citation number for included articles
+                let citationNumber = null;
+                if (isIncluded) {
+                    const citationIndex = includedArticlesForSummary.findIndex(a => a.pmid === article.pmid);
+                    if (citationIndex !== -1) {
+                        citationNumber = citationIndex + 1;
+                    }
+                }
+                
                 const li = document.createElement('li');
-                li.className = `text-gray-700 flex items-start gap-2 p-2 rounded-lg transition-all ${isIncluded && index < SUMMARY_LIMIT ? 'bg-blue-50/50 border border-blue-100' : 'bg-white'}`;
+                li.className = `text-gray-700 flex items-start gap-2 p-2 rounded-lg transition-all ${isIncluded ? 'bg-blue-50/50 border border-blue-100' : 'bg-white'}`;
                 
                 if (index < SUMMARY_LIMIT) {
                     // Checkbox
@@ -1108,10 +981,10 @@
                     checkbox.setAttribute('data-pmid', article.pmid);
                     checkbox.addEventListener('change', handleExclusionToggle);
                     
-                    // Citation number
+                    // Citation number - shows actual citation number if included, or the list position if not
                     const citationSpan = document.createElement('span');
                     citationSpan.className = `font-bold mr-1 w-6 text-center shrink-0 ${isIncluded ? 'text-blue-600' : 'text-gray-400'}`;
-                    citationSpan.textContent = `[${index + 1}]`;
+                    citationSpan.textContent = isIncluded ? `[${citationNumber}]` : `[${index + 1}]`;
                     
                     li.appendChild(checkbox);
                     li.appendChild(citationSpan);
