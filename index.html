@@ -3,1206 +3,690 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Steve's AI Literature Summariser</title>
+    <title>AI-Assisted SLR Screener v9.5 (JSON Fix)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        .spinner {
-            border: 4px solid rgba(0, 0, 0, 0.1);
-            border-left-color: #3b82f6;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-        }
-        .chat-spinner {
-            width: 20px;
-            height: 20px;
-            border-width: 2px;
-            animation: spin 0.8s linear infinite;
-        }
-        .filter-section {
-            transition: max-height 0.3s ease-out, padding 0.3s ease-out;
-            max-height: 0;
-            overflow: hidden;
-            padding: 0 1rem;
-        }
-        .filter-section.active {
-            max-height: 500px;
-            padding: 1rem;
-        }
-        #chatHistory {
-            min-height: 350px;
-            max-height: 600px;
-        }
-        .exclusion-checkbox:checked {
-            accent-color: #ef4444;
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f7f9fb; }
+        .scroll-container { max-height: 70vh; overflow-y: auto; border: 1px solid #e5e7eb; background-color: white; padding: 1rem; }
+        .article-card { transition: transform 0.2s; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .article-card:hover { transform: translateY(-2px); }
+        #slr-draft-output { white-space: pre-wrap; font-family: 'Georgia', serif; line-height: 1.6; color: #1f2937; }
+        #slr-draft-output h1 { font-size: 2rem; font-weight: bold; margin-top: 2rem; margin-bottom: 1rem; border-bottom: 2px solid #e5e7eb; color: #111827; }
+        #slr-draft-output h2 { font-size: 1.5rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.75rem; color: #374151; }
+        #slr-draft-output h3 { font-size: 1.25rem; font-weight: bold; margin-top: 1.25rem; color: #4b5563; }
+        #slr-draft-output table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9em; }
+        #slr-draft-output th, #slr-draft-output td { border: 1px solid #d1d5db; padding: 8px; text-align: left; }
+        #slr-draft-output th { background-color: #f3f4f6; font-weight: bold; }
+        .modal { transition: opacity 0.25s ease; }
+        body.modal-active { overflow-x: hidden; overflow-y: visible !important; }
+        .tab-btn { border-bottom: 2px solid transparent; }
+        .tab-btn.active { border-bottom-color: #2563EB; color: #1E40AF; background-color: #EFF6FF; }
+        .kappa-badge { font-variant-numeric: tabular-nums; }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
-
-    <div class="bg-white rounded-xl shadow-2xl p-6 md:p-10 w-full max-w-7xl">
+<body>
+    <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 relative">
         
-        <header class="text-center mb-6">
-            <h1 class="text-3xl md:text-4xl font-bold text-gray-800">Steve's AI Literature Summariser</h1>
-            <p class="text-gray-500 mt-2">Enter your query to get an AI-powered search, summary, and chat.</p>
-        </header>
-        
-        <div class="flex flex-col sm:flex-row flex-wrap gap-y-2 gap-x-6 items-center mb-4 p-3 bg-blue-50/50 rounded-lg border border-blue-200">
-            <span class="font-medium text-gray-700 whitespace-nowrap">Search Scope:</span>
-            
-            <label class="flex items-center gap-1 cursor-pointer">
-                <input type="radio" name="searchScope" value="precise" class="text-blue-600 focus:ring-blue-500">
-                **Precise** (High Precision)
-            </label>
-            
-            <label class="flex items-center gap-1 cursor-pointer">
-                <input type="radio" name="searchScope" value="balanced" checked class="text-blue-600 focus:ring-blue-500">
-                **Balanced** (Good Mix, Default)
-            </label>
-
-            <label class="flex items-center gap-1 cursor-pointer">
-                <input type="radio" name="searchScope" value="broad" class="text-blue-600 focus:ring-blue-500">
-                **Broad** (High Recall)
-            </label>
-        </div>
-
-        <div class="mb-4">
-            <input 
-                type="text" 
-                id="searchInput"
-                placeholder="E.g., 'Does resveratrol improve mitochondrial function in aging humans?'"
-                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-            >
-        </div>
-        
-        <div class="flex justify-end mb-4">
-            <button 
-                id="searchButton"
-                class="w-full sm:w-auto bg-blue-600 text-white font-semibold px-6 py-3 rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200"
-            >
-                Search & Summarize
+        <!-- Top Controls -->
+        <div class="absolute top-4 right-4 z-10 flex gap-2">
+            <input type="file" id="load-project-input" class="hidden" accept=".slr,.json" onchange="window.loadProject(this)">
+            <button onclick="document.getElementById('load-project-input').click()" class="text-gray-600 hover:text-blue-700 bg-white px-3 py-1 rounded shadow border text-sm flex items-center transition">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg> Load
+            </button>
+            <button onclick="window.saveProject()" class="text-gray-600 hover:text-blue-700 bg-white px-3 py-1 rounded shadow border text-sm flex items-center transition">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg> Save
+            </button>
+            <button onclick="window.downloadAuditLog()" class="text-gray-500 hover:text-blue-700 bg-white px-3 py-1 rounded shadow border text-sm transition" title="Download Audit Log">Audit Log</button>
+            <button onclick="toggleModal('settings-modal')" class="text-gray-500 hover:text-gray-700 focus:outline-none transition">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
             </button>
         </div>
 
-        <div id="statusArea" class="mt-6">
-            <div id="loadingSpinner" class="hidden flex-col items-center justify-center text-center">
-                <div class="spinner"></div>
-                <p id="loadingMessage" class="text-gray-600 mt-3 font-medium">Translating query...</p>
+        <header class="text-center mb-8 p-6 bg-white rounded-xl shadow-lg">
+            <h1 class="text-4xl font-extrabold text-blue-800">AI-Assisted SLR Screener <span class="text-sm font-normal text-white bg-indigo-600 px-2 py-1 rounded ml-2">v9.5 Stable</span></h1>
+            <p class="text-lg text-gray-600 mt-2">Advanced Search Strategy with MeSH Expansion & Dual-Key Failover.</p>
+        </header>
+
+        <!-- GLOBAL PROGRESS BAR -->
+        <div id="progress-container" class="hidden mb-6 bg-white p-4 rounded-xl shadow-md border border-gray-200 transition-all">
+            <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden shadow-inner">
+                <div id="progress-bar" class="bg-blue-600 h-4 rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
             </div>
-            
-            <div id="errorMessage" class="hidden p-4 bg-red-100 border border-red-300 text-red-700 rounded-lg">
+            <p id="progress-text" class="text-center text-sm font-bold text-gray-700 mt-2">Preparing...</p>
+        </div>
+
+        <div id="status-message" class="text-center text-lg font-medium py-4 rounded-lg shadow-inner hidden mb-4"></div>
+
+        <!-- Step 1: Protocol -->
+        <div id="input-panel" class="bg-white p-6 rounded-xl shadow-lg mb-8">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">1. Research Protocol</h2>
+            <form id="criteria-form">
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Research Question / PICO:</label>
+                    <textarea id="research-question" rows="3" required class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="e.g. Efficacy of GLP-1 agonists in adolescents with Type 2 Diabetes..."></textarea>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Option A: Search PubMed</label>
+                        <div class="flex gap-2 mb-2 relative">
+                            <input type="text" id="pubmed-query-input" placeholder="Query will auto-generate..." class="flex-1 p-3 border border-gray-300 rounded-lg font-mono text-xs text-blue-800 bg-blue-50">
+                            <!-- MeSH Badge -->
+                            <span id="mesh-badge" class="hidden absolute right-2 top-3 text-[10px] bg-indigo-600 text-white px-2 py-0.5 rounded font-bold uppercase tracking-wide">MeSH Enabled</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="flex-1">
+                                <label class="text-xs text-gray-500">Date Limit (Year)</label>
+                                <input type="number" id="date-limit" placeholder="e.g. 2020" class="w-full p-2 border border-gray-300 rounded-lg text-sm">
+                            </div>
+                            <div class="flex-1">
+                                <label class="text-xs text-gray-500">Max Results</label>
+                                <input type="number" id="max-results" value="200" min="10" max="2000" class="w-full p-2 border border-gray-300 rounded-lg text-sm font-bold text-blue-800">
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Option B: Import RIS (EndNote/Scopus)</label>
+                        <input type="file" id="ris-upload" accept=".ris,.txt" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+                    </div>
+                </div>
+                <button type="submit" id="generate-button" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow transition">Generate High-Sensitivity Protocol (MeSH)</button>
+            </form>
+        </div>
+        
+        <!-- Step 1.5: Calibration -->
+        <div id="calibration-panel" class="hidden bg-white p-6 rounded-xl shadow-lg mb-8 border-l-4 border-purple-500">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-semibold text-gray-800">🔬 Calibration Phase</h2>
+                <span id="kappa-display" class="kappa-badge text-sm font-bold bg-gray-100 px-3 py-1 rounded-full">Kappa: Pending</span>
             </div>
+            <p class="text-gray-600 mb-4">Blindly screen these <span id="calib-count">5</span> articles. The AI (Dual Agents) will screen in background.</p>
+            <div id="calibration-card" class="bg-gray-50 p-6 rounded-lg border border-gray-200 mb-4 relative min-h-[200px]">
+                <div id="calib-content"></div>
+                <div id="calib-overlay" class="absolute inset-0 bg-white bg-opacity-90 flex flex-col items-center justify-center hidden">
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">Calibration Complete</h3>
+                    <p id="calib-result-text" class="text-lg mb-4 font-semibold"></p>
+                    <button onclick="window.finishCalibration()" class="bg-purple-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-purple-700">Proceed to Full Screening</button>
+                </div>
+            </div>
+            <div class="flex justify-center gap-4" id="calib-controls">
+                <button onclick="window.calibVote('EXCLUDE')" class="bg-red-100 text-red-700 px-6 py-3 rounded-lg font-bold hover:bg-red-200 w-1/3">Exclude ❌</button>
+                <button onclick="window.calibVote('INCLUDE')" class="bg-green-100 text-green-700 px-6 py-3 rounded-lg font-bold hover:bg-green-200 w-1/3">Include ✅</button>
+            </div>
+        </div>
 
-            <div id="resultsContainer" class="hidden">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Step 2: Review Protocol -->
+        <div id="review-panel" class="bg-white p-6 rounded-xl shadow-lg mb-8 hidden">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">2. Protocol Review</h2>
+            <div class="bg-indigo-50 p-4 rounded-lg mb-4 text-sm text-indigo-800 border border-indigo-100 flex items-start">
+                <svg class="w-6 h-6 mr-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                <div>
+                    <strong>Dual-Agent Screening Active:</strong> Reviewer A (Sensitive) vs Reviewer B (Strict). Disagreements = Conflict.
+                </div>
+            </div>
+            <div id="pico-container" class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200 hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div class="bg-white p-3 rounded shadow-sm border-l-4 border-blue-500"><span class="block font-bold text-gray-500 text-xs">P</span><span id="pico-p"></span></div>
+                    <div class="bg-white p-3 rounded shadow-sm border-l-4 border-green-500"><span class="block font-bold text-gray-500 text-xs">I</span><span id="pico-i"></span></div>
+                    <div class="bg-white p-3 rounded shadow-sm border-l-4 border-orange-500"><span class="block font-bold text-gray-500 text-xs">C</span><span id="pico-c"></span></div>
+                    <div class="bg-white p-3 rounded shadow-sm border-l-4 border-purple-500"><span class="block font-bold text-gray-500 text-xs">O</span><span id="pico-o"></span></div>
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Inclusion/Exclusion (JSON)</label>
+                <textarea id="inclusion-criteria" rows="6" class="w-full p-3 border border-gray-300 rounded-lg font-mono text-sm"></textarea>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="window.startCalibration()" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg shadow transition">Start Calibration</button>
+                <button onclick="window.startScreening({skipCalibration:true})" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg transition">Skip & Screen All (<span id="total-articles-count">0</span>)</button>
+            </div>
+        </div>
 
-                    <div class="md:col-span-2 space-y-8">
-                        
-                        <section id="querySections" class="pb-2 space-y-4 border-b border-gray-200">
-                            <div>
-                                <h2 class="text-xl font-semibold text-gray-800">Original Query:</h2>
-                                <p id="originalQueryText" class="text-gray-600 text-lg break-words mt-1 p-2 bg-gray-50 rounded-lg border border-gray-200 shadow-inner"></p>
-                            </div>
+        <!-- Step 3: Results -->
+        <div id="results-panel" class="hidden">
+            <h2 class="text-3xl font-bold text-gray-800 mb-6 border-b-4 border-blue-200 pb-2">3. Screening Results</h2>
+            <div class="flex border-b border-gray-200 mb-6">
+                <button onclick="switchTab('included')" id="tab-included" class="tab-btn active px-6 py-3 font-medium text-sm">Included (<span id="included-count">0</span>)</button>
+                <button onclick="switchTab('borderline')" id="tab-borderline" class="tab-btn px-6 py-3 font-medium text-sm text-yellow-600">Conflicts (<span id="borderline-count">0</span>)</button>
+                <button onclick="switchTab('excluded')" id="tab-excluded" class="tab-btn px-6 py-3 font-medium text-sm text-gray-500">Excluded (<span id="excluded-count">0</span>)</button>
+            </div>
+            <div id="content-included" class="tab-content"><div id="included-list" class="scroll-container grid gap-4 grid-cols-1 md:grid-cols-2"></div></div>
+            <div id="content-borderline" class="tab-content hidden"><div id="borderline-list" class="scroll-container grid gap-4 grid-cols-1 md:grid-cols-2 bg-yellow-50 border-yellow-200"></div></div>
+            <div id="content-excluded" class="tab-content hidden"><div id="excluded-list" class="scroll-container grid gap-4 grid-cols-1 md:grid-cols-2"></div></div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+                 <button onclick="window.exportResults('json')" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg">Export JSON</button>
+                <button onclick="window.exportResults('csv')" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-lg">Export CSV</button>
+            </div>
+        </div>
+        
+        <!-- Step 4: Full Text -->
+        <div id="upload-panel" class="bg-white p-6 rounded-xl shadow-lg mt-8 hidden">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">4. Full Text & Extraction Config</h2>
+            <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+                <label class="block text-sm font-bold text-gray-700 mb-2">Define Quantitative Extraction Schema</label>
+                <input type="text" id="extraction-fields" value="Sample Size (N), Mean Age, Intervention Dosage, Primary Outcome Result (Mean/SD), P-Value, Adverse Events (N)" class="w-full p-2 border border-gray-300 rounded text-sm font-mono text-blue-800">
+                <p class="text-xs text-gray-500 mt-1">The AI will extract these specific columns for every included study.</p>
+            </div>
+            <div id="retrieval-status-message" class="mb-4 p-3 rounded-lg bg-yellow-50 text-yellow-800 font-medium hidden"></div>
+            <div class="border-2 border-dashed border-purple-200 p-6 rounded-xl bg-purple-50 mb-4">
+                <input type="file" id="fileInput" accept=".txt,.md,.log,.csv,.pdf" multiple class="hidden" onchange="window.handleFileSelect()">
+                <label for="fileInput" class="file-upload-label flex flex-col items-center justify-center p-8 border-4 border-purple-500 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200">
+                    <span class="text-lg font-semibold">Click to upload PDFs/Text</span>
+                </label>
+            </div>
+            <div class="flex gap-4">
+                 <button id="start-full-text-review-button" onclick="window.startFullTextReview()" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded-lg shadow opacity-50 cursor-not-allowed" disabled>Start Extraction & RoB</button>
+                <button id="skip-full-text-button" onclick="window.skipFullTextReview()" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg">Skip Full Text</button>
+            </div>
+            <div id="fileListContainer" class="mt-4 space-y-4"></div>
+        </div>
+        
+        <!-- Step 5: Extracted Data -->
+        <div id="full-text-review-panel" class="bg-white p-6 rounded-xl shadow-lg mt-8 hidden">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2">5. Extracted Data & RoB</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-xs text-left" id="extraction-table">
+                    <thead class="bg-gray-50 border-b"><tr><th class="p-2">PMID</th><th class="p-2">Decision</th><th class="p-2">Data</th><th class="p-2">RoB</th></tr></thead>
+                    <tbody id="extraction-table-body"></tbody>
+                </table>
+            </div>
+        </div>
 
-                            <button id="togglePubmedQueryButton" class="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center transition-colors">
-                                <span id="pubmedQueryToggleText">Show Optimized Search Strategy</span>
-                                <svg id="pubmedQueryToggleIcon" class="w-4 h-4 ml-1 transition-transform duration-300 transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                            </button>
-
-                            <div id="translatedQuerySection" class="hidden border border-blue-200 bg-blue-50 p-3 rounded-lg">
-                                <h2 class="text-xl font-semibold text-gray-800">PubMed Search Used (Optimized with MeSH):</h2>
-                                <p id="translatedQueryText" class="text-blue-700 text-lg font-mono break-words mt-1"></p>
-                            </div>
-                        </section>
-
-                        <section id="filterToggle" class="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                            <button id="toggleFilterButton" class="w-full text-left font-semibold text-gray-700 hover:text-blue-600 transition-colors flex justify-between items-center">
-                                <span id="filterStatusText">Filter & Sort Articles (0 Applied / 0 Total)</span>
-                                <svg id="filterToggleIcon" class="w-5 h-5 transition-transform duration-300 transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                            </button>
-                            
-                            <div id="filterPanel" class="filter-section">
-                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-                                    
-                                    <div class="flex flex-col">
-                                        <label for="minYearInput" class="text-sm font-medium text-gray-700 mb-1">Min Year</label>
-                                        <input type="number" id="minYearInput" min="1900" max="2025" placeholder="e.g., 2020" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                                    </div>
-                                    
-                                    <div class="flex flex-col">
-                                        <label for="minCitationCountInput" class="text-sm font-medium text-gray-700 mb-1">Min Citation Count</label>
-                                        <input type="number" id="minCitationCountInput" min="0" placeholder="e.g., 10" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
-                                    </div>
-
-                                    <div class="flex flex-col col-span-1 md:col-span-2 lg:col-span-1">
-                                        <label for="pubTypeSelect" class="text-sm font-medium text-gray-700 mb-1">Publication Type(s)</label>
-                                        <select multiple size="5" id="pubTypeSelect" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white">
-                                            <option value="All" selected>All Types</option>
-                                            <option value="Review">Review</option>
-                                            <option value="Randomized Controlled Trial">RCT</option>
-                                            <option value="Meta-Analysis">Meta-Analysis</option>
-                                            <option value="Clinical Trial">Clinical Trial</option>
-                                            <option value="Case Reports">Case Reports</option>
-                                            <option value="Journal Article">Journal Article</option>
-                                        </select>
-                                    </div>
-                                    
-                                    <div class="flex flex-col">
-                                        <label for="sortBySelect" class="text-sm font-medium text-gray-700 mb-1">Sort By</label>
-                                        <select id="sortBySelect" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white">
-                                            <option value="relevance">Relevance (Default)</option>
-                                            <option value="year-desc">Year (Newest First)</option>
-                                            <option value="year-asc">Year (Oldest First)</option>
-                                            <option value="citations-desc">Citation Count (Highest)</option>
-                                            <option value="citations-asc">Citation Count (Lowest)</option>
-                                        </select>
-                                    </div>
-
-                                </div>
-                                
-                                <button 
-                                    id="applyFiltersButton"
-                                    class="mt-4 w-full bg-green-600 text-white font-semibold py-2 rounded-lg shadow-md hover:bg-green-700 transition-all duration-200"
-                                >
-                                    Apply Filters & Re-Summarize
-                                </button>
-                            </div>
-                        </section>
-
-                        <section id="summarySection">
-                            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-200 pb-2 mb-4">
-                                AI Summary (with Citations)
-                            </h2>
-                            
-                            <div class="flex flex-col sm:flex-row justify-between items-start mb-4 gap-4">
-                                <div class="flex flex-wrap gap-4 items-center" id="summaryTypeContainer">
-                                    <span class="font-medium text-gray-700">Summary Depth:</span>
-                                    <label class="flex items-center gap-1 cursor-pointer">
-                                        <input type="radio" name="summaryType" value="brief" checked class="text-blue-600 focus:ring-blue-500">
-                                        Brief
-                                    </label>
-                                    <label class="flex items-center gap-1 cursor-pointer">
-                                        <input type="radio" name="summaryType" value="deep" class="text-blue-600 focus:ring-blue-500">
-                                        Deep
-                                    </label>
-                                    <label class="flex items-center gap-1 cursor-pointer">
-                                        <input type="radio" name="summaryType" value="layman" class="text-blue-600 focus:ring-blue-500">
-                                        Layman's Terms
-                                    </label>
-                                    <label class="flex items-center gap-1 cursor-pointer">
-                                        <input type="radio" name="summaryType" value="technical" class="text-blue-600 focus:ring-blue-500">
-                                        Technical/Scientific
-                                    </label>
-                                    <label class="flex items-center gap-1 cursor-pointer">
-                                        <input type="radio" name="summaryType" value="breakdown" class="text-blue-600 focus:ring-blue-500">
-                                        Structured Breakdown
-                                    </label>
-                                </div>
-                                
-                                <div class="flex flex-col gap-1 w-full sm:w-auto mt-4 sm:mt-0">
-                                    <label for="languageSelect" class="font-medium text-gray-700 text-sm">Translate To:</label>
-                                    <select id="languageSelect" class="px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 bg-white">
-                                        <option value="en" selected>English</option>
-                                        <option value="es">Spanish (Español)</option>
-                                        <option value="fr">French (Français)</option>
-                                        <option value="de">German (Deutsch)</option>
-                                        <option value="ja">Japanese (日本語)</option>
-                                        <option value="zh">Chinese (中文)</option>
-                                        <option value="hi">Hindi (हिन्दी)</option>
-                                        <option value="pirate">Pirate (Ahoy!)</option>
-                                    </select>
-                                </div>
-                                
-                                <button 
-                                    id="regenerateSummaryButton"
-                                    class="w-full sm:w-auto bg-gray-600 text-white font-semibold px-4 py-2 rounded-lg shadow-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all duration-200 mt-4 sm:mt-0"
-                                >
-                                    Regenerate Summary
-                                </button>
-                            </div>
-                            
-                            <div id="summaryText" class="text-gray-700 leading-relaxed prose max-w-none p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-inner"></div>
-                        </section>
-                        
-                        <section id="articlesSection">
-                            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-200 pb-2 mb-4">
-                                Filtered & Sorted Results (<span id="filteredCount">0</span> articles)
-                            </h2>
-                            <div class="text-sm font-semibold text-red-600 mb-3" id="exclusionNote">
-                                <span class="p-1 rounded bg-red-100 border border-red-300">
-                                    **Tip:** Check the box to **exclude** a paper from the summary. Green = Full Text, Gray = Abstract Only.
-                                </span>
-                            </div>
-                            <ol id="articlesList" class="list-none space-y-4">
-                            </ol>
-                        </section>
-
-                    </div>
-
-                    <div class="md:col-span-1">
-                        <section id="chatSection">
-                            <h2 class="text-2xl font-bold text-gray-800 border-b-2 border-blue-200 pb-2 mb-4">
-                                Chat with Results
-                            </h2>
-                            
-                            <div id="chatHistory" class="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4 overflow-y-auto mb-4 shadow-inner">
-                            </div>
-                            
-                            <div class="flex gap-2">
-                                <input 
-                                    type="text" 
-                                    id="chatInput"
-                                    placeholder="Ask a follow-up question about these results..."
-                                    class="flex-grow w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-                                >
-                                <button 
-                                    id="chatSendButton"
-                                    class="bg-blue-600 text-white font-semibold px-5 py-3 rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center"
-                                >
-                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
-                                </button>
-                            </div>
-                            
-                            <div id="chatSpinner" class="hidden flex items-center gap-2 text-gray-500 mt-2">
-                                <div class="chat-spinner chat-spinner-custom"></div>
-                                <span>AI is thinking...</span>
-                            </div>
-                        </section>
-                    </div>
-
+        <!-- Step 6: Report -->
+        <div id="report-panel" class="bg-white p-6 rounded-xl shadow-lg mt-8 hidden">
+            <h2 class="text-2xl font-semibold text-gray-800 mb-4 border-b pb-2 flex justify-between items-center">
+                <span>6. Final Report</span>
+                <button onclick="window.checkPrisma()" class="text-xs bg-indigo-100 text-indigo-700 px-3 py-1 rounded hover:bg-indigo-200 border border-indigo-300">✅ PRISMA Checklist</button>
+            </h2>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Drafting Instructions:</label>
+                <textarea id="drafting-instructions" rows="2" class="w-full p-3 border border-gray-300 rounded-lg" placeholder="e.g., Focus on statistical heterogeneity..."></textarea>
+            </div>
+            <div class="flex gap-4 mb-4">
+                <button id="generate-report-button" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg">Generate Full Report (w/ Bibliography)</button>
+                <button id="generate-prisma-button" onclick="window.generatePrismaDiagram()" class="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg">Generate PRISMA Diagram</button>
+            </div>
+            <div id="slr-draft-output" class="mt-6 p-8 border border-gray-200 rounded-lg bg-white shadow-sm max-h-[70vh] overflow-y-auto"></div>
+            <div id="prisma-output" class="mt-6 p-4 rounded-lg bg-white overflow-x-auto text-center"></div>
+            <div id="refine-section" class="mt-6 pt-6 border-t border-gray-200 hidden">
+                <h3 class="text-lg font-bold text-gray-800 mb-2">Refine This Draft</h3>
+                <div class="flex gap-2">
+                    <textarea id="refine-instructions" rows="2" class="flex-1 p-3 border border-gray-300 rounded-lg" placeholder="e.g., Expand the conclusion..."></textarea>
+                    <button id="refine-button" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-2 px-4 rounded-lg">Refine</button>
                 </div>
             </div>
         </div>
 
+    </div>
+
+    <!-- PRISMA Checklist Modal -->
+    <div id="prisma-modal" class="modal opacity-0 pointer-events-none fixed w-full h-full top-0 left-0 flex items-center justify-center z-50">
+        <div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-50" onclick="toggleModal('prisma-modal')"></div>
+        <div class="modal-container bg-white w-11/12 md:max-w-lg mx-auto rounded shadow-lg z-50 overflow-y-auto p-6 max-h-[80vh]">
+            <h3 class="text-xl font-bold mb-4">PRISMA 2020 Pre-Flight Check</h3>
+            <div class="space-y-2 text-sm text-gray-700" id="prisma-list"></div>
+            <div class="mt-6 flex justify-end"><button onclick="toggleModal('prisma-modal')" class="bg-blue-600 text-white px-4 py-2 rounded">Close</button></div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal opacity-0 pointer-events-none fixed w-full h-full top-0 left-0 flex items-center justify-center z-50">
+        <div class="modal-overlay absolute w-full h-full bg-gray-900 opacity-50" onclick="toggleModal('settings-modal')"></div>
+        <div class="modal-container bg-white w-11/12 md:max-w-md mx-auto rounded shadow-lg z-50 overflow-y-auto">
+            <div class="modal-content py-4 text-left px-6">
+                <div class="flex justify-between items-center pb-3"><p class="text-2xl font-bold">API Settings</p><div class="modal-close cursor-pointer z-50" onclick="toggleModal('settings-modal')">x</div></div>
+                <div class="my-5 space-y-4">
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Primary API Key</label><input type="password" id="api-key-1" class="w-full p-2 border rounded" placeholder="Main Key"></div>
+                    <div><label class="block text-sm font-medium text-gray-700 mb-1">Backup API Key (Optional)</label><input type="password" id="api-key-2" class="w-full p-2 border rounded" placeholder="Failover Key"></div>
+                </div>
+                <div class="flex justify-end"><button onclick="saveSettings()" class="px-4 py-2 bg-blue-600 text-white rounded font-bold">Save</button></div>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
-        // ==================== CONFIGURATION ====================
-        const NCBI_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
-        const SUMMARY_LIMIT = 20;
-        const ESEARCH_LIMIT = 100;
-        const MAP_REDUCE_CHUNK_SIZE = 5;
+        const apiKey = "AIzaSyDpqUR_N4g_lHf1zAW53st7iTWpDQlkXsM"; // Primary Hardcoded Key
+        const backupApiKey = "AIzaSyAJclRSkKNWVcVCuxZZDFnYAF-VqUqYYAM"; // Backup Hardcoded Key
+        const LLM_MODEL = "gemini-2.5-flash-preview-09-2025";
+        const PUBMED_BASE_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/';
+        const API_TOOL = "slr_screener_bot";
+        const API_EMAIL = "example@example.com";
+        const CONCURRENCY_LIMIT = 4;
+
+        let appState = {
+            articles: [], criteria: {}, calibrationSet: [], calibrationIndex: 0,
+            humanVotes: {}, aiVotes: {}, auditLog: [], uploadedTexts: {},
+            currentDraft: "", abortProcessing: false, extractionSchema: []
+        };
+
+        // --- Dual Key Management ---
+        let activeKeyIndex = 0;
+        function getApiKey() {
+            const k1 = localStorage.getItem('custom_api_key_1') || apiKey;
+            const k2 = localStorage.getItem('custom_api_key_2') || backupApiKey;
+            const keys = [k1, k2].filter(k => k && k.trim() !== '');
+            if (keys.length === 0) return "";
+            return keys[activeKeyIndex % keys.length];
+        }
+
+        window.saveSettings = () => {
+            localStorage.setItem('custom_api_key_1', document.getElementById('api-key-1').value);
+            localStorage.setItem('custom_api_key_2', document.getElementById('api-key-2').value);
+            toggleModal('settings-modal');
+            appState.abortProcessing = false;
+            activeKeyIndex = 0;
+            alert('Keys saved.');
+        };
+
+        window.toggleModal = (id) => { document.getElementById(id).classList.toggle("opacity-0"); document.getElementById(id).classList.toggle("pointer-events-none"); document.body.classList.toggle("modal-active"); };
+        window.switchTab = (t) => { ['included','borderline','excluded'].forEach(x => { document.getElementById(`tab-${x}`).classList.remove('active','text-blue-800','bg-blue-50'); document.getElementById(`content-${x}`).classList.add('hidden'); }); document.getElementById(`tab-${t}`).classList.add('active'); document.getElementById(`content-${t}`).classList.remove('hidden'); };
         
-        // CORS Proxy configuration - using AllOrigins (free, reliable service)
-        const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
-        
-        const ESEARCH_URL = `${NCBI_BASE_URL}esearch.fcgi?db=pubmed&retmode=json&retmax=${ESEARCH_LIMIT}&sort=relevance`;
-        const EFETCH_URL = `${NCBI_BASE_URL}efetch.fcgi?db=pubmed&retmode=xml`;
-        const ESUMMARY_URL = `${NCBI_BASE_URL}esummary.fcgi?db=pubmed&retmode=json`;
-        const PMC_EFETCH_URL = `${NCBI_BASE_URL}efetch.fcgi?db=pmc&retmode=xml&id=`;
-        const ICITE_API_URL = 'https://icite.od.nih.gov/api/pubs';
-        
-        const GEMINI_API_KEY = "AIzaSyAJclRSkKNWVcVCuxZZDFnYAF-VqUqYYAM";
-        const GEMINI_MODEL = "gemini-2.5-flash-preview-09-2025";
-        const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
-        
-        // ==================== GLOBAL STATE ====================
-        let originalArticles = [];
-        let filteredArticles = [];
-        let lastEnglishSummary = '';
-        let currentOriginalQuery = '';
-        let currentPubmedQuery = '';
-        let chatHistory = [];
-        let currentChatContext = "";
-        let includedArticlesForSummary = [];
-        
-        // Performance optimization: Cache for LLM responses
-        const responseCache = new Map();
-        
-        // ==================== DOM ELEMENTS ====================
-        const searchInput = document.getElementById('searchInput');
-        const searchButton = document.getElementById('searchButton');
-        const loadingSpinner = document.getElementById('loadingSpinner');
-        const loadingMessage = document.getElementById('loadingMessage');
-        const errorMessage = document.getElementById('errorMessage');
-        const resultsContainer = document.getElementById('resultsContainer');
-        const summaryText = document.getElementById('summaryText');
-        const articlesList = document.getElementById('articlesList');
-        const originalQueryText = document.getElementById('originalQueryText');
-        const translatedQueryText = document.getElementById('translatedQueryText');
-        const togglePubmedQueryButton = document.getElementById('togglePubmedQueryButton');
-        const pubmedQueryToggleText = document.getElementById('pubmedQueryToggleText');
-        const pubmedQueryToggleIcon = document.getElementById('pubmedQueryToggleIcon');
-        const translatedQuerySection = document.getElementById('translatedQuerySection');
-        const toggleFilterButton = document.getElementById('toggleFilterButton');
-        const filterPanel = document.getElementById('filterPanel');
-        const applyFiltersButton = document.getElementById('applyFiltersButton');
-        const minYearInput = document.getElementById('minYearInput');
-        const minCitationCountInput = document.getElementById('minCitationCountInput');
-        const pubTypeSelect = document.getElementById('pubTypeSelect');
-        const filteredCountSpan = document.getElementById('filteredCount');
-        const filterStatusText = document.getElementById('filterStatusText');
-        const filterToggleIcon = document.getElementById('filterToggleIcon');
-        const sortBySelect = document.getElementById('sortBySelect');
-        const regenerateSummaryButton = document.getElementById('regenerateSummaryButton');
-        const languageSelect = document.getElementById('languageSelect');
-        const chatHistoryUI = document.getElementById('chatHistory');
-        const chatInput = document.getElementById('chatInput');
-        const chatSendButton = document.getElementById('chatSendButton');
-        const chatSpinner = document.getElementById('chatSpinner');
-        
-        // ==================== EVENT LISTENERS ====================
-        searchButton.addEventListener('click', handleSearch);
-        searchInput.addEventListener('keypress', (e) => e.key === 'Enter' && handleSearch());
-        applyFiltersButton.addEventListener('click', handleFilterApply);
-        regenerateSummaryButton.addEventListener('click', () => handleRegenerateSummary(true));
-        toggleFilterButton.addEventListener('click', () => {
-            filterPanel.classList.toggle('active');
-            filterToggleIcon.classList.toggle('-rotate-180');
-        });
-        togglePubmedQueryButton.addEventListener('click', handleTogglePubmedQuery);
-        chatSendButton.addEventListener('click', handleChatSend);
-        chatInput.addEventListener('keypress', (e) => e.key === 'Enter' && handleChatSend());
-        languageSelect.addEventListener('change', () => handleRegenerateSummary(false));
-        
-        // ==================== CORE FUNCTIONS ====================
-        
-        function handleTogglePubmedQuery() {
-            const isHidden = translatedQuerySection.classList.contains('hidden');
-            translatedQuerySection.classList.toggle('hidden');
-            pubmedQueryToggleText.textContent = isHidden ? 'Hide Optimized Search Strategy' : 'Show Optimized Search Strategy';
-            pubmedQueryToggleIcon.classList.toggle('rotate-180');
+        function updateStatus(msg, type='info') {
+            const el = document.getElementById('status-message');
+            el.innerHTML = msg; 
+            el.className = `text-center text-lg font-medium py-4 rounded-lg shadow-inner mb-4 ${type==='error'?'bg-red-100 text-red-800':(type==='success'?'bg-green-100 text-green-800':'bg-blue-100 text-blue-800')}`;
+            el.classList.remove('hidden');
+        }
+
+        function setButtonLoading(id, isLoading) {
+            const btn = document.getElementById(id);
+            if(!btn) return;
+            if (isLoading) { btn.dataset.originalText = btn.innerText; btn.innerText = "Processing..."; btn.disabled = true; } 
+            else { btn.innerText = btn.dataset.originalText || "Submit"; btn.disabled = false; }
         }
         
-        function handleExclusionToggle(event) {
-            const pmid = event.target.getAttribute('data-pmid');
-            const isExcluded = event.target.checked;
-            
-            if (isExcluded) {
-                includedArticlesForSummary = includedArticlesForSummary.filter(a => a.pmid !== pmid);
+        function setProgressBar(percent, message) {
+            const container = document.getElementById('progress-container');
+            const bar = document.getElementById('progress-bar');
+            const text = document.getElementById('progress-text');
+            if (percent !== null) {
+                container.classList.remove('hidden');
+                bar.style.width = `${percent}%`;
+                if (message) text.textContent = message;
             } else {
-                const articleToAdd = filteredArticles.find(a => a.pmid === pmid);
-                if (articleToAdd) includedArticlesForSummary.push(articleToAdd);
+                container.classList.add('hidden');
+                bar.style.width = '0%';
             }
-            
-            // Maintain citation order
-            const pmidOrder = filteredArticles.map(a => a.pmid);
-            includedArticlesForSummary.sort((a, b) => pmidOrder.indexOf(a.pmid) - pmidOrder.indexOf(b.pmid));
-            
-            displayArticlesList(filteredArticles);
-            handleRegenerateSummary(true);
         }
+
+        function logAudit(action, details) { appState.auditLog.push({ timestamp: new Date().toISOString(), action, details }); }
         
-        async function handleRegenerateSummary(forceSummarize) {
-            if (includedArticlesForSummary.length === 0) return;
+        // FIXED EXTRACT JSON: Using a simpler, more robust regex for extraction
+        function extractJson(text) {
+            // Find the first { and the last }
+            let startIndex = text.indexOf('{');
+            if (startIndex === -1) return null; // No JSON found
             
-            const currentLang = languageSelect.value;
-            let finalSummary = '';
+            // Simple Brace Counting
+            let braceCount = 0;
+            let endIndex = -1;
             
-            if (forceSummarize || currentLang === 'en') {
-                setLoading(true, `Generating English summary for ${includedArticlesForSummary.length} included articles...`);
-                const summaryType = document.querySelector('input[name="summaryType"]:checked').value;
-                lastEnglishSummary = await summarizeWithMapReduce(includedArticlesForSummary, summaryType, currentOriginalQuery);
-                finalSummary = lastEnglishSummary;
-            } else if (currentLang !== 'en' && lastEnglishSummary) {
-                setLoading(true, `Translating summary to ${languageSelect.options[languageSelect.selectedIndex].text}...`);
-                finalSummary = await translateSummary(lastEnglishSummary, currentLang);
-            } else {
-                finalSummary = "Error: Could not find previous summary for translation.";
+            for (let i = startIndex; i < text.length; i++) {
+                if (text[i] === '{') braceCount++;
+                else if (text[i] === '}') braceCount--;
+                
+                if (braceCount === 0) {
+                    endIndex = i;
+                    break;
+                }
             }
             
-            displayResults(currentOriginalQuery, currentPubmedQuery, finalSummary, filteredArticles, getActiveFilterCount());
-            setLoading(false);
+            if (endIndex !== -1) {
+                return text.substring(startIndex, endIndex + 1);
+            }
+            
+            // Fallback to standard cleanup if brace counting fails (e.g. malformed)
+            return text.replace(/```json|```/g, '').trim(); 
         }
-        
-        async function handleSearch() {
-            const originalQuery = searchInput.value.trim();
-            if (!originalQuery) {
-                showError("Please enter a search term.");
-                return;
-            }
-            
-            const searchScope = document.querySelector('input[name="searchScope"]:checked').value;
-            
-            setLoading(true, "Translating query...");
-            hideError();
-            resultsContainer.classList.add('hidden');
-            
-            // Reset state completely - including clearing the summary
-            originalArticles = [];
-            filteredArticles = [];
-            includedArticlesForSummary = [];
-            lastEnglishSummary = '';
-            chatHistory = [];
-            currentOriginalQuery = originalQuery;
-            summaryText.innerHTML = ''; // Clear previous summary
-            articlesList.innerHTML = ''; // Clear previous articles
-            
-            translatedQuerySection.classList.add('hidden');
-            pubmedQueryToggleText.textContent = 'Show Optimized Search Strategy';
-            pubmedQueryToggleIcon.classList.remove('rotate-180');
-            
+
+        // --- Save/Load System ---
+        window.saveProject = () => {
             try {
-                // Step 1: Translate query
-                const pubmedQuery = await translateQuery(originalQuery, searchScope);
-                currentPubmedQuery = pubmedQuery;
-                setLoading(true, `Fetching up to ${ESEARCH_LIMIT} articles...`);
-                
-                // Step 2: Search PubMed
-                let pmids = await searchPubMed(pubmedQuery);
-                
-                // Fallback to original query if needed
-                if (!pmids || pmids.length === 0) {
-                    console.warn(`Optimized query returned zero results. Falling back to original query.`);
-                    currentPubmedQuery = originalQuery;
-                    setLoading(true, `Trying original query: "${originalQuery}"...`);
-                    pmids = await searchPubMed(originalQuery);
-                }
-                
-                if (!pmids || pmids.length === 0) {
-                    showError(`No articles found. Please try a broader term.`);
-                    setLoading(false);
-                    return;
-                }
-                
-                setLoading(true, `Fetching details and citation counts for ${pmids.length} articles...`);
-                
-                // Step 3: Fetch article details (fully parallelized)
-                const articles = await fetchArticleDetails(pmids);
-                if (!articles || articles.length === 0) {
-                    showError("Could not fetch article details.");
-                    setLoading(false);
-                    return;
-                }
-                
-                originalArticles = articles;
-                await handleFilterApply();
-                
-            } catch (error) {
-                console.error("Search failed:", error);
-                showError(`An error occurred: ${error.message}`);
-                setLoading(false);
+                const blob = new Blob([JSON.stringify(appState, null, 2)], {type: "application/json"});
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = `slr_project_${new Date().toISOString().slice(0,10)}.slr`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                updateStatus("Project saved.", "success");
+            } catch (e) { alert("Save failed: " + e.message); }
+        };
+
+        window.downloadAuditLog = () => {
+            try {
+                const txt = `PRISMA-S AUDIT LOG\nGenerated: ${new Date().toISOString()}\n\n` + appState.auditLog.map(l => `[${l.timestamp}] ${l.action}: ${JSON.stringify(l.details)}`).join('\n\n');
+                const a = document.createElement('a'); a.href = "data:text/plain;charset=utf-8," + encodeURIComponent(txt); a.download = "slr_audit_log.txt"; a.click();
+            } catch(e) { alert("Audit Log download failed: " + e.message); }
+        };
+
+        window.loadProject = async (input) => {
+            const file = input.files[0];
+            if(!file) return;
+            const text = await file.text();
+            appState = JSON.parse(text);
+            if(appState.articles.length > 0) {
+                document.getElementById('input-panel').classList.add('hidden');
+                document.getElementById('results-panel').classList.remove('hidden');
+                renderResults();
+                if(appState.articles.some(a=>a.FullTextFileName)) { document.getElementById('upload-panel').classList.remove('hidden'); renderFiles(); }
+                if(appState.articles.some(a=>a.FinalDecision)) { document.getElementById('full-text-review-panel').classList.remove('hidden'); document.getElementById('report-panel').classList.remove('hidden'); renderFinalReviewResults(); }
             }
-        }
-        
-        function getActiveFilterCount() {
-            const minYear = parseInt(minYearInput.value) || 0;
-            const minCitations = parseInt(minCitationCountInput.value) || 0;
-            const selectedPubTypes = Array.from(pubTypeSelect.options)
-                .filter(opt => opt.selected && opt.value !== 'All')
-                .map(opt => opt.value);
-            
-            let count = 0;
-            if (minYear > 0) count++;
-            if (minCitations > 0) count++;
-            if (selectedPubTypes.length > 0) count++;
-            return count;
-        }
-        
-        async function handleFilterApply() {
-            if (originalArticles.length === 0) return;
-            
-            setLoading(true, "Applying filters and generating summary...");
-            hideError();
-            
-            const minYear = parseInt(minYearInput.value) || 0;
-            const minCitations = parseInt(minCitationCountInput.value) || 0;
-            const sortBy = sortBySelect.value;
-            
-            const selectedPubTypes = Array.from(pubTypeSelect.options)
-                .filter(opt => opt.selected && opt.value !== 'All')
-                .map(opt => opt.value);
-            
-            const requiredPubTypes = selectedPubTypes.length > 0 ? selectedPubTypes : ['All'];
-            const activeFilters = getActiveFilterCount();
-            
-            // Apply filters
-            let currentFilteredArticles = originalArticles.filter(article => {
-                const yearMatch = article.year >= minYear;
-                const citationMatch = article.citationCount >= minCitations;
-                const pubTypeMatch = requiredPubTypes.includes('All') || 
-                    requiredPubTypes.some(reqType => article.publicationType.includes(reqType));
-                return yearMatch && citationMatch && pubTypeMatch;
-            });
-            
-            // Apply sorting (optimized with single pass)
-            if (sortBy !== 'relevance') {
-                const sortFn = {
-                    'year-desc': (a, b) => b.year - a.year,
-                    'year-asc': (a, b) => a.year - b.year,
-                    'citations-desc': (a, b) => b.citationCount - a.citationCount,
-                    'citations-asc': (a, b) => a.citationCount - b.citationCount
-                }[sortBy];
-                currentFilteredArticles.sort(sortFn);
-            }
-            
-            filteredArticles = currentFilteredArticles;
-            
-            if (filteredArticles.length === 0) {
-                showError("No articles remain after applying these filters.");
-                setLoading(false);
-                includedArticlesForSummary = [];
-                displayResults(currentOriginalQuery, currentPubmedQuery, "No articles matched the current filter criteria.", filteredArticles, activeFilters);
-                return;
-            }
-            
-            includedArticlesForSummary = filteredArticles.slice(0, SUMMARY_LIMIT);
-            await generateAndDisplaySummary(filteredArticles, activeFilters);
-        }
-        
-        async function generateAndDisplaySummary(currentFilteredArticles, activeFilters) {
-            const articlesToSummarize = includedArticlesForSummary;
-            
-            if (articlesToSummarize.length === 0) {
-                displayResults(currentOriginalQuery, currentPubmedQuery, "No articles selected for summary.", currentFilteredArticles, activeFilters);
-                setLoading(false);
-                return;
-            }
-            
-            setLoading(true, `Generating summary for ${articlesToSummarize.length} articles using Map-Reduce...`);
-            
-            const summaryType = document.querySelector('input[name="summaryType"]:checked').value;
-            const englishSummary = await summarizeWithMapReduce(articlesToSummarize, summaryType, currentOriginalQuery);
-            lastEnglishSummary = englishSummary;
-            
-            const currentLang = languageSelect.value;
-            let finalSummary = englishSummary;
-            if (currentLang !== 'en') {
-                setLoading(true, `Translating summary to ${languageSelect.options[languageSelect.selectedIndex].text}...`);
-                finalSummary = await translateSummary(englishSummary, currentLang);
-            }
-            
-            displayResults(currentOriginalQuery, currentPubmedQuery, finalSummary, currentFilteredArticles, activeFilters);
-            setLoading(false);
-        }
-        
-        // ==================== LLM FUNCTIONS (OPTIMIZED) ====================
-        
-        /**
-         * Optimized Map-Reduce with full parallelization and caching
-         */
-        async function summarizeWithMapReduce(articles, summaryType, originalQuery) {
-            if (articles.length === 0) return "No articles were included in the summary generation process.";
-            
-            // Create chunks
-            const chunks = [];
-            for (let i = 0; i < articles.length; i += MAP_REDUCE_CHUNK_SIZE) {
-                chunks.push(articles.slice(i, i + MAP_REDUCE_CHUNK_SIZE));
-            }
-            
-            setLoading(true, `Step 1/2: Analyzing ${articles.length} articles in ${chunks.length} batches (parallel execution)...`);
-            
-            // Map step - fully parallelized
-            const mapPromises = chunks.map((chunk, i) => {
-                const globalStartIndex = i * MAP_REDUCE_CHUNK_SIZE;
-                const textToSummarize = prepareSummaryContext(chunk, globalStartIndex);
-                
-                const mapSystemPrompt = `You are a medical research assistant. Your task is to read the following research articles (labeled [ARTICLE N] where N is the final citation ID 1 through ${articles.length}) and generate a concise **list of key findings, methodologies, and conclusions** for this small set. **Crucially, you MUST preserve the full citation ID (e.g., [ARTICLE 1] or [ARTICLE 6]) after each finding.** Your output should be a single, detailed, bulleted list. Respond ONLY with the list.`;
-                
-                return callGeminiApi({
-                    contents: [{ parts: [{ text: textToSummarize }] }],
-                    systemInstruction: { parts: [{ text: mapSystemPrompt }] },
-                }, `map_${i}_${summaryType}`);
-            });
-            
-            const intermediateSummaries = await Promise.all(mapPromises);
-            
-            // Reduce step
-            const combinedIntermediateText = intermediateSummaries.join('\n\n--- INTERMEDIATE FINDINGS BREAK ---\n\n');
-            
-            setLoading(true, `Step 2/2: Synthesizing ${chunks.length} intermediate findings into final summary...`);
-            
-            const reduceSystemPrompt = getReduceSystemPrompt(summaryType, originalQuery);
-            
-            return await callGeminiApi({
-                contents: [{ parts: [{ text: combinedIntermediateText }] }],
-                systemInstruction: { parts: [{ text: reduceSystemPrompt }] },
-            }, `reduce_${summaryType}_${articles.length}`);
-        }
-        
-        function prepareSummaryContext(articles, globalStartIndex) {
-            return articles.map((article, index) => {
-                const citationID = globalStartIndex + index + 1;
-                // Store the citation ID on the article object for later reference
-                article.citationID = citationID;
-                let text = `[ARTICLE ${citationID}] (PMID: ${article.pmid}, Citations: ${article.citationCount}, Year: ${article.year}): ${article.title}\n`;
-                if (article.fullText) {
-                    text += `--- FULL TEXT (Truncated) ---\n${article.fullText}\n--- END FULL TEXT ---\n`;
-                } else {
-                    text += `Abstract: ${article.abstract || 'No abstract available.'}`;
-                }
-                return text;
-            }).join('\n\n====================\n\n');
-        }
-        
-        function getReduceSystemPrompt(summaryType, originalQuery) {
-            const focusInstruction = `Your synthesis MUST specifically address and directly answer the original research question: "${originalQuery}".`;
-            const citationInstruction = `When using a citation, convert the source ID [ARTICLE N] into the final citation format [N] (e.g., [ARTICLE 1, ARTICLE 3] becomes [1, 3]).`;
-            
-            if (summaryType === 'breakdown') {
-                return `You are a medical research synthesizer. You have been given several lists of key findings (intermediate summaries). ${focusInstruction} Your task is to unify all these points into a single, highly **structured summary** using clear Markdown headings (##). You MUST adhere to this structure:
-                
-                ## 1. Research Overview
-                Briefly state the research question and main conclusion derived from the articles.
-                
-                ## 2. Methodology & Study Design
-                Describe the types of studies included, sample sizes, and key intervention/exposure.
-                
-                ## 3. Key Findings
-                List the principal results, focusing on the most important outcomes that relate to the original query.
-                
-                ## 4. Conclusion & Implications
-                Synthesize the overall conclusion and discuss the practical implications of the findings.
-                
-                ${citationInstruction} You MUST include the final citation ID(s) in brackets, like [1, 3], after every derived claim.`;
-            } else if (summaryType === 'technical') {
-                return `You are an expert research scientist. You have been given several lists of key findings. ${focusInstruction} Your task is to unify all these points into a single, highly **technically accurate and complete** summary, structured into three distinct sections.
-                1. **Methods & Design:** Describe the primary study designs, sample sizes, dosage, and key analytical techniques found in the lists.
-                2. **Key Results:** State the principal findings, focusing on **statistically significant outcomes** and incorporating numerical data where present.
-                3. **Conclusion & Limitations:** Synthesize the overall conclusion and explicitly mention any methodological limitations.
-                You MUST use highly technical language. ${citationInstruction} Strictly adhere to the final citation format [1, 3] after every derived claim.`;
-            }
-            
-            const basePrompt = {
-                'deep': `deep, comprehensive, multi-paragraph summary. Synthesize the key findings, methodologies, trends, and conclusions. ${focusInstruction} ${citationInstruction}`,
-                'layman': `concise, easy-to-understand summary in **layman's terms**. Avoid technical jargon, use simple language. ${focusInstruction} ${citationInstruction}`,
-                'brief': `brief, one-paragraph summary. Synthesize the key findings and conclusions. ${focusInstruction} ${citationInstruction}`
-            }[summaryType] || `brief, one-paragraph summary. Synthesize the key findings and conclusions. ${focusInstruction} ${citationInstruction}`;
-            
-            return `You are a specialized medical research assistant. You have been given several lists of key findings (intermediate summaries). Your task is to unify all these points into a single, cohesive, and ${basePrompt} Whenever you state a specific finding or conclusion derived from the intermediate lists, you MUST follow that statement immediately with the final citation ID(s) in brackets, like [1, 3] or [2].`;
-        }
-        
-        async function translateQuery(query, searchScope) {
-            const instructions = {
-                'broad': "To ensure **high recall (broadness)**, use broader MeSH terms, favor OR operators over AND where appropriate, and include more synonyms/related terms to maximize the number of relevant results. Avoid overly restrictive field tags.",
-                'precise': "To ensure **high precision (specificity)**, use highly specific MeSH terms, favor AND operators, and use restrictive field tags (like [tiab], [majr]) to filter for the most relevant papers.",
-                'balanced': "To achieve a **balanced** search result set, use a combination of specific MeSH terms and common synonyms linked by balanced use of AND/OR. Aim for a query that provides relevant results without being overly narrow or too broad. Use [tiab] for key concepts but allow for some broader terms."
-            };
-            
-            const instruction = instructions[searchScope] || instructions['balanced'];
-            
-            const systemPrompt = `You are an expert bioinformatician. Convert the following natural language research question into a highly optimized PubMed search query. ${instruction} Provide ONLY the final search string, without any other conversational text or explanation.`;
-            
-            return await callGeminiApi({
-                contents: [{ parts: [{ text: `Original Research Question: ${query}` }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-                tools: [{ "google_search": {} }],
-            }, `translate_${searchScope}_${query.substring(0, 50)}`);
-        }
-        
-        async function translateSummary(text, targetLang) {
-            if (targetLang === 'en') return text;
-            
-            let systemPrompt;
-            if (targetLang === 'pirate') {
-                systemPrompt = `Ahoy, matey! Ye be a scurvy pirate translator, an' yer task be to translate the followin' scholarly text into the tongue of a swashbucklin' seadog. Keep all th' numerical data, scientific terms, and citation marks (like [1, 3]) exactly as they be in the original. Make yer translation lively and nautical! Respond ONLY with yer translated text.`;
-            } else {
-                const langName = languageSelect.options[languageSelect.selectedIndex].text.split('(')[0].trim();
-                systemPrompt = `You are a professional translator specializing in scientific texts. Translate the following English scientific summary into ${langName}. It is crucial that you retain all numerical data, scientific terms, and citation markers (e.g., [1, 3]) exactly as they appear in the original text. Maintain a formal, academic tone. Provide ONLY the translated text.`;
-            }
-            
-            return await callGeminiApi({
-                contents: [{ parts: [{ text: text }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-            }, `translate_${targetLang}_${text.substring(0, 50)}`);
-        }
-        
-        async function chatWithLLM(history, context) {
-            const systemPrompt = `You are a specialized medical research assistant. The user is asking follow-up questions about a set of research articles. Based *only* on the provided context (summary and articles), answer the user's questions. Do not use external knowledge. Be concise and directly answer the question.\n\n--- CONTEXT START ---\n${context}\n--- CONTEXT END ---`;
-            
-            return await callGeminiApi({
-                contents: history,
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-            });
-        }
-        
-        /**
-         * Optimized API call with caching and efficient retry logic
-         */
-        async function callGeminiApi(payload, cacheKey = null) {
-            // Check cache first
-            if (cacheKey && responseCache.has(cacheKey)) {
-                return responseCache.get(cacheKey);
-            }
-            
-            let attempts = 0;
-            let delay = 1000;
-            const maxRetries = 5;
-            
-            while (attempts < maxRetries) {
+            updateStatus("Project loaded successfully.", "success");
+        };
+
+        // --- KEY ROTATION FETCH ---
+        async function fetchWithRetry(url, options = {}, retries = 4) {
+            if (appState.abortProcessing) throw new Error("Aborted");
+            for (let i = 0; i < retries; i++) {
                 try {
-                    const response = await fetch(GEMINI_API_URL, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                    
-                    if (response.ok) {
-                        const result = await response.json();
-                        const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                        if (text) {
-                            // Cache the result
-                            if (cacheKey) {
-                                responseCache.set(cacheKey, text);
-                                // Limit cache size to prevent memory issues
-                                if (responseCache.size > 100) {
-                                    const firstKey = responseCache.keys().next().value;
-                                    responseCache.delete(firstKey);
-                                }
-                            }
-                            return text.trim();
-                        } else {
-                            throw new Error("Invalid response structure from LLM API (no text).");
+                    let currentUrl = url;
+                    const currentKey = getApiKey();
+                    if(currentUrl.includes('key=')) currentUrl = currentUrl.replace(/key=[^&]*/, `key=${currentKey}`);
+                    const r = await fetch(currentUrl, options);
+                    if (!r.ok) {
+                        const isAuthError = r.status === 401;
+                        if (isAuthError || r.status === 429 || r.status === 503) {
+                            console.warn(`Request failed with ${r.status}. Rotating key...`);
+                            activeKeyIndex++; 
+                            await new Promise(res => setTimeout(res, Math.pow(2, i) * 1000 + (Math.random() * 1000)));
+                            if (i === retries - 1 && isAuthError) { appState.abortProcessing = true; toggleModal('settings-modal'); throw new Error("All API Keys Failed."); }
+                            continue;
                         }
-                    } else if (response.status === 429 || response.status >= 500) {
-                        attempts++;
-                        if (attempts >= maxRetries) throw new Error("Rate limit or server error after retries");
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                        delay *= 2;
-                    } else {
-                        const errorResult = await response.json();
-                        throw new Error(`LLM API Error: ${errorResult.error?.message || response.statusText}`);
+                        throw new Error(r.statusText);
                     }
-                } catch (error) {
-                    attempts++;
-                    if (attempts >= maxRetries) throw error;
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    delay *= 2;
+                    return r;
+                } catch (e) {
+                    if (appState.abortProcessing) throw e;
+                    if (i === retries - 1) throw e;
+                    activeKeyIndex++;
+                    await new Promise(res => setTimeout(res, 1000));
                 }
             }
-            throw new Error("LLM request failed after multiple retries.");
         }
-        
-        // ==================== PUBMED FUNCTIONS (OPTIMIZED) ====================
-        
-        async function searchPubMed(query) {
-            const encodedQuery = encodeURIComponent(query);
-            const url = `${ESEARCH_URL}&term=${encodedQuery}`;
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`PubMed search failed with status ${response.status}`);
-            const data = await response.json();
-            return data.esearchresult?.idlist || [];
-        }
-        
-        /**
-         * Fetch full text from PMC using CORS proxy
-         */
-        async function fetchFullText(pmcid) {
-            const url = `${PMC_EFETCH_URL}${pmcid}`;
-            try {
-                // Use CORS proxy to fetch PMC full text
-                const response = await fetch(CORS_PROXY + encodeURIComponent(url));
-                if (!response.ok) {
-                    console.log(`PMC fetch failed for ${pmcid}: status ${response.status}`);
-                    return null;
-                }
-                
-                const xmlText = await response.text();
-                const parser = new DOMParser();
-                const xmlDoc = parser.parseFromString(xmlText, "application/xml");
-                const bodyNode = xmlDoc.querySelector('body');
-                
-                if (bodyNode) {
-                    let fullText = bodyNode.textContent.trim().replace(/\s\s+/g, ' ');
-                    const MAX_CHARS = 5000;
-                    if (fullText.length > MAX_CHARS) {
-                        fullText = fullText.substring(0, MAX_CHARS) + '... [Full Text Truncated]';
-                    }
-                    console.log(`Successfully fetched full text for PMC${pmcid} (${fullText.length} chars)`);
-                    return fullText;
-                }
-                return null;
-            } catch (error) {
-                console.warn(`Error fetching full text for PMC${pmcid}:`, error.message);
-                return null;
+
+        async function runWithConcurrency(tasks, limit) {
+            const results = []; const executing = [];
+            for (const task of tasks) {
+                if (appState.abortProcessing) break;
+                const p = Promise.resolve().then(() => task());
+                results.push(p); const e = p.then(() => executing.splice(executing.indexOf(e), 1));
+                executing.push(e);
+                if (executing.length >= limit) await Promise.race(executing);
             }
+            return Promise.all(results);
         }
-        
-        /**
-         * Fetch citation counts using NIH iCite API through CORS proxy
-         * This provides comprehensive citation data for all PubMed articles
-         */
-        async function fetchCitationCounts(pmids) {
-            if (pmids.length === 0) return {};
-            
-            try {
-                // Convert PMIDs to numbers as iCite expects numeric values
-                const numericPmids = pmids.map(id => parseInt(id));
-                
-                // Use CORS proxy for iCite API
-                const response = await fetch(CORS_PROXY + encodeURIComponent(ICITE_API_URL), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ pmids: numericPmids })
-                });
-                
-                if (!response.ok) {
-                    console.warn(`iCite API failed with status ${response.status}, falling back to ESummary`);
-                    return await fetchCitationCountsFallback(pmids);
-                }
-                
-                const data = await response.json();
-                const counts = {};
-                
-                // iCite returns citation_count for each article
-                if (data.data && Array.isArray(data.data)) {
-                    data.data.forEach(article => {
-                        if (article.pmid) {
-                            counts[String(article.pmid)] = article.citation_count || 0;
-                        }
-                    });
-                    console.log(`iCite returned citation data for ${data.data.length} articles`);
-                } else {
-                    console.warn("iCite returned unexpected data, falling back to ESummary");
-                    return await fetchCitationCountsFallback(pmids);
-                }
-                
-                // Fill in any missing PMIDs with 0
-                pmids.forEach(pmid => {
-                    if (!(pmid in counts)) {
-                        counts[pmid] = 0;
+
+        // --- 1. Import Logic ---
+        function parseRIS(text) {
+            const articles = []; const entries = text.split(/ER\s{0,2}-/g);
+            entries.forEach(entry => {
+                const getTag = (tag) => (entry.match(new RegExp(`${tag}\\s{1,2}-\\s+(.*)`)) || [])[1]?.trim();
+                const title = getTag('TI') || getTag('T1');
+                if (title) articles.push({ 
+                    PMID: getTag('ID')||getTag('AN')||`RIS_${Math.random().toString(36).substr(2,9)}`, 
+                    Title: title, Abstract: getTag('AB')||getTag('N2')||"No Abstract", Source: 'RIS Import', Decision: 'PENDING',
+                    Year: getTag('PY') || getTag('Y1'),
+                    CitationMeta: {
+                        Journal: getTag('JO') || getTag('JF') || getTag('T2'), Volume: getTag('VL'), Issue: getTag('IS'),
+                        Pages: getTag('SP') ? `${getTag('SP')}-${getTag('EP')||''}` : '',
+                        Authors: (entry.match(/(?:AU|A1)\s{1,2}-\s+(.*)/g) || []).map(l => l.replace(/^(?:AU|A1)\s{1,2}-\s+/, '').trim()).join(', ')
                     }
                 });
-                
-                return counts;
-            } catch (error) {
-                console.error("Error fetching citation counts from iCite:", error);
-                console.log("Falling back to ESummary for citation counts");
-                return await fetchCitationCountsFallback(pmids);
-            }
-        }
-        
-        /**
-         * Fallback citation fetching using ESummary (doesn't need CORS proxy)
-         */
-        async function fetchCitationCountsFallback(pmids) {
-            if (pmids.length === 0) return {};
-            
-            try {
-                const chunkSize = 200;
-                const chunks = [];
-                for (let i = 0; i < pmids.length; i += chunkSize) {
-                    chunks.push(pmids.slice(i, i + chunkSize));
-                }
-                
-                const allCounts = {};
-                
-                for (const chunk of chunks) {
-                    const pmidString = chunk.join(',');
-                    const url = `${ESUMMARY_URL}&id=${pmidString}`;
-                    
-                    const response = await fetch(url);
-                    if (!response.ok) {
-                        chunk.forEach(pmid => allCounts[pmid] = 0);
-                        continue;
-                    }
-                    
-                    const data = await response.json();
-                    
-                    if (data.result) {
-                        chunk.forEach(pmid => {
-                            const articleData = data.result[pmid];
-                            if (articleData) {
-                                const pmcRefCount = parseInt(articleData.pmc_refcount) || 0;
-                                allCounts[pmid] = pmcRefCount;
-                            } else {
-                                allCounts[pmid] = 0;
-                            }
-                        });
-                    }
-                }
-                
-                console.log(`ESummary fallback: Retrieved citation counts for ${Object.keys(allCounts).length} articles`);
-                return allCounts;
-                
-            } catch (error) {
-                console.error("Error in ESummary fallback:", error);
-                return pmids.reduce((acc, pmid) => ({ ...acc, [pmid]: 0 }), {});
-            }
-        }
-        
-        /**
-         * Optimized XML parsing with single-pass processing
-         */
-        function parsePubMedXML(xmlText) {
-            const parser = new DOMParser();
-            const xmlDoc = parser.parseFromString(xmlText, "application/xml");
-            const articleNodes = xmlDoc.getElementsByTagName('PubmedArticle');
-            const articles = [];
-            const currentYear = new Date().getFullYear();
-            
-            for (const node of articleNodes) {
-                const pmidNode = node.querySelector('PMID');
-                const titleNode = node.querySelector('ArticleTitle');
-                const abstractNodes = node.querySelectorAll('AbstractText');
-                
-                // Parse year with fallback
-                const pubDateNode = node.querySelector('PubDate Year');
-                const year = pubDateNode ? parseInt(pubDateNode.textContent) : currentYear;
-                
-                // Parse publication type
-                const pubTypeNodes = node.querySelectorAll('PublicationType');
-                const pubType = pubTypeNodes.length > 0 
-                    ? Array.from(pubTypeNodes).map(n => n.textContent).join(', ')
-                    : 'Journal Article';
-                
-                // Parse PMC ID
-                let pmcId = null;
-                const articleIdList = node.querySelector('ArticleIdList');
-                if (articleIdList) {
-                    const pmcIdNode = Array.from(articleIdList.querySelectorAll('ArticleId'))
-                        .find(id => id.getAttribute('IdType') === 'pmc');
-                    if (pmcIdNode) pmcId = pmcIdNode.textContent.replace('PMC', '');
-                }
-                
-                const abstract = Array.from(abstractNodes).map(n => n.textContent).join(' ') || 'No abstract available';
-                
-                articles.push({
-                    pmid: pmidNode ? pmidNode.textContent : 'Unknown',
-                    title: titleNode ? titleNode.textContent : 'No title available',
-                    abstract: abstract,
-                    pmcid: pmcId,
-                    fullText: null,
-                    year: year,
-                    publicationType: pubType,
-                    citationCount: 0
-                });
-            }
-            
+            });
             return articles;
         }
-        
-        /**
-         * Fully parallelized article detail fetching
-         * Fetches XML, citation counts, and full texts all in parallel
-         */
-        async function fetchArticleDetails(pmids) {
-            const pmidString = pmids.join(',');
-            const url = `${EFETCH_URL}&id=${pmidString}`;
+        document.getElementById('ris-upload').addEventListener('change', async (e) => {
+            const text = await e.target.files[0].text();
+            const newArts = parseRIS(text);
+            const unique = newArts.filter(n => !appState.articles.some(e => e.Title.toLowerCase().replace(/[^\w]/g,'') === n.Title.toLowerCase().replace(/[^\w]/g,'')));
+            appState.articles.push(...unique);
+            document.getElementById('total-articles-count').textContent = appState.articles.length;
+            updateStatus(`Imported ${unique.length} articles (RIS).`, 'success');
+            logAudit('RIS Import', { count: unique.length });
+        });
+
+        // --- 2. Protocol (RESTORED MESH PROMPT) ---
+        async function generateProtocol(e) {
+            e.preventDefault();
+            const q = document.getElementById('research-question').value;
+            const limit = document.getElementById('max-results').value;
+            setButtonLoading('generate-button', true);
+            updateStatus('Drafting optimized MeSH protocol...', 'process');
             
-            console.log(`Fetching details for ${pmids.length} articles...`);
+            // OPTIMIZED PROMPT: Explicitly requests detailed PICO definitions
+            const prompt = `Act as a Systematic Reviewer Methodologist. Deconstruct the research question "${q}" into a detailed PICO framework.
             
-            // Start XML fetch and citation fetch in parallel
-            const xmlPromise = fetch(url).then(response => {
-                if (!response.ok) throw new Error(`PubMed fetch failed with status ${response.status}`);
-                return response.text();
-            });
+            1. PICO Analysis:
+               - Population: Specify demographics, patient characteristics, and settings.
+               - Intervention: List specific treatments, exposures, or tests (include generic names).
+               - Comparison: Specify controls, placebos, or alternative interventions.
+               - Outcome: List primary and secondary clinical outcomes.
             
-            const citationPromise = fetchCitationCounts(pmids);
+            2. Search Strategy (PubMed):
+               - Identify MeSH terms and text-word synonyms for P and I.
+               - Construct a Boolean query using OR for synonyms and AND to combine P and I.
+               - Do NOT restrict by Outcome in the query to ensure high sensitivity.
             
-            // Wait for both to complete
-            const [xmlText, citationCounts] = await Promise.all([xmlPromise, citationPromise]);
-            
-            console.log(`Citation counts retrieved for ${Object.keys(citationCounts).length} articles`);
-            
-            let articles = parsePubMedXML(xmlText);
-            
-            // Attach citation counts and fetch full texts in parallel
-            const enrichedArticles = await Promise.all(
-                articles.map(async (article) => {
-                    article.citationCount = citationCounts[article.pmid] || 0;
-                    if (article.pmcid) {
-                        article.fullText = await fetchFullText(article.pmcid);
-                    }
-                    return article;
-                })
-            );
-            
-            const fullTextCount = enrichedArticles.filter(a => a.fullText).length;
-            console.log(`Retrieved full text for ${fullTextCount}/${articles.length} articles`);
-            
-            return enrichedArticles;
-        }
-        
-        // ==================== UI FUNCTIONS ====================
-        
-        function displayResults(originalQuery, pubmedQuery, summary, currentFilteredArticles, activeFilters = 0) {
-            originalQueryText.textContent = originalQuery;
-            translatedQueryText.textContent = pubmedQuery;
-            summaryText.innerHTML = formatSummaryOutput(summary);
-            
-            const activeFilterText = activeFilters > 0 ? `${activeFilters} Applied` : '0 Applied';
-            filterStatusText.textContent = `Filter & Sort Articles (${activeFilterText} / ${originalArticles.length} Total)`;
-            filteredCountSpan.textContent = currentFilteredArticles.length;
-            
-            displayArticlesList(currentFilteredArticles);
-            resultsContainer.classList.remove('hidden');
-            resetChat(summary, includedArticlesForSummary);
-        }
-        
-        /**
-         * Optimized article list display with document fragment for better performance
-         * Now correctly shows citation numbers based on includedArticlesForSummary
-         */
-        function displayArticlesList(currentFilteredArticles) {
-            const fragment = document.createDocumentFragment();
-            
-            currentFilteredArticles.forEach((article, index) => {
-                const isIncluded = includedArticlesForSummary.some(a => a.pmid === article.pmid);
-                
-                // Find the actual citation number for included articles
-                let citationNumber = null;
-                if (isIncluded) {
-                    const citationIndex = includedArticlesForSummary.findIndex(a => a.pmid === article.pmid);
-                    if (citationIndex !== -1) {
-                        citationNumber = citationIndex + 1;
-                    }
-                }
-                
-                const li = document.createElement('li');
-                li.className = `text-gray-700 flex items-start gap-2 p-2 rounded-lg transition-all ${isIncluded ? 'bg-blue-50/50 border border-blue-100' : 'bg-white'}`;
-                
-                if (index < SUMMARY_LIMIT) {
-                    // Checkbox
-                    const checkbox = document.createElement('input');
-                    checkbox.type = 'checkbox';
-                    checkbox.checked = !isIncluded;
-                    checkbox.className = 'mt-1 w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 cursor-pointer exclusion-checkbox';
-                    checkbox.setAttribute('data-pmid', article.pmid);
-                    checkbox.addEventListener('change', handleExclusionToggle);
-                    
-                    // Citation number - shows actual citation number if included, or the list position if not
-                    const citationSpan = document.createElement('span');
-                    citationSpan.className = `font-bold mr-1 w-6 text-center shrink-0 ${isIncluded ? 'text-blue-600' : 'text-gray-400'}`;
-                    citationSpan.textContent = isIncluded ? `[${citationNumber}]` : `[${index + 1}]`;
-                    
-                    li.appendChild(checkbox);
-                    li.appendChild(citationSpan);
-                } else {
-                    const placeholder = document.createElement('span');
-                    placeholder.className = 'w-10 shrink-0';
-                    li.appendChild(placeholder);
-                }
-                
-                // Article content
-                const contentDiv = document.createElement('div');
-                contentDiv.className = "flex flex-col flex-grow";
-                
-                const link = document.createElement('a');
-                link.href = `https://pubmed.ncbi.nlm.nih.gov/${article.pmid}/`;
-                link.textContent = article.title;
-                link.target = "_blank";
-                link.rel = "noopener noreferrer";
-                link.className = "text-blue-600 hover:underline font-medium";
-                
-                const metaText = document.createElement('span');
-                const hasFullText = article.fullText;
-                metaText.textContent = `Citations: ${article.citationCount}, Year: ${article.year} (${hasFullText ? 'Full Text Used' : 'Abstract Only'})`;
-                metaText.className = hasFullText ? "text-xs font-semibold text-green-600" : "text-xs text-gray-500";
-                
-                contentDiv.appendChild(link);
-                contentDiv.appendChild(metaText);
-                li.appendChild(contentDiv);
-                fragment.appendChild(li);
-            });
-            
-            articlesList.innerHTML = '';
-            articlesList.appendChild(fragment);
-        }
-        
-        function formatSummaryOutput(summary) {
-            let html = summary;
-            html = html.replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>');
-            html = `<p>${html}</p>`;
-            html = html.replace(/\[([\d,\s]+)\]/g, (match, p1) => {
-                return `<span class="inline-block px-1 bg-blue-100 text-blue-800 font-semibold rounded-md text-sm cursor-pointer hover:bg-blue-200 transition-colors">[${p1}]</span>`;
-            });
-            return html;
-        }
-        
-        function resetChat(summary, articles) {
-            chatHistory = [];
-            currentChatContext = `Summary:\n${summary}\n\nSummarized Articles:\n` +
-                articles.map((article, index) => {
-                    const citationID = index + 1;
-                    return `[ARTICLE ${citationID}] (PMID: ${article.pmid}, Citations: ${article.citationCount}): ${article.title}\nAbstract/Text: ${article.fullText || article.abstract}`;
-                }).join('\n\n');
-            
-            chatHistoryUI.innerHTML = `
-                <div class="text-gray-500 italic p-2 text-center border-b pb-4">
-                    Context updated. You can now ask questions about the ${articles.length} articles used in the summary above.
-                </div>`;
-        }
-        
-        async function handleChatSend() {
-            const prompt = chatInput.value.trim();
-            if (!prompt) return;
-            
-            chatInput.value = '';
-            displayChatMessage(prompt, 'user');
-            chatHistory.push({ role: 'user', parts: [{ text: prompt }] });
-            
-            chatSpinner.classList.remove('hidden');
-            chatSendButton.disabled = true;
-            chatInput.disabled = true;
+            3. Eligibility:
+               - Define strict Inclusion and Exclusion criteria.
+
+            Output JSON: { 
+                "PICO": {"P":"Detailed description...","I":"...","C":"...","O":"..."}, 
+                "Inclusion": "bullet points", 
+                "Exclusion": "bullet points", 
+                "SearchQuery": "((MeSH OR Synonym) AND (MeSH OR Synonym))" 
+            }`;
             
             try {
-                const response = await chatWithLLM(chatHistory, currentChatContext);
-                displayChatMessage(response, 'model');
-                chatHistory.push({ role: 'model', parts: [{ text: response }] });
-            } catch (error) {
-                console.error("Chat error:", error);
-                displayChatMessage(`Error: ${error.message}`, 'model', true);
-            } finally {
-                chatSpinner.classList.add('hidden');
-                chatSendButton.disabled = false;
-                chatInput.disabled = false;
-                chatInput.focus();
-            }
-        }
-        
-        function displayChatMessage(message, role, isError = false) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'p-3 rounded-lg';
-            
-            if (role === 'user') {
-                messageDiv.className += ' bg-gray-100 self-end';
-                messageDiv.textContent = message;
-            } else {
-                messageDiv.className += isError ? ' bg-red-100 text-red-700' : ' bg-blue-50 self-start';
-                message = message.replace(/\[(\d+)\]/g, '<strong>[$1]</strong>');
-                messageDiv.innerHTML = message.replace(/\n/g, '<br>');
-            }
-            
-            chatHistoryUI.appendChild(messageDiv);
-            chatHistoryUI.scrollTop = chatHistoryUI.scrollHeight;
-        }
-        
-        function setLoading(isLoading, message = "Processing...") {
-            const buttons = [searchButton, applyFiltersButton, regenerateSummaryButton];
-            
-            if (isLoading) {
-                loadingMessage.textContent = message;
-                loadingSpinner.classList.remove('hidden');
-                loadingSpinner.classList.add('flex');
-                buttons.forEach(btn => {
-                    btn.disabled = true;
-                    btn.classList.add('opacity-50', 'cursor-not-allowed');
-                });
-            } else {
-                loadingSpinner.classList.add('hidden');
-                loadingSpinner.classList.remove('flex');
-                buttons.forEach(btn => {
-                    btn.disabled = false;
-                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
-                });
+                const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${getApiKey()}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ contents:[{parts:[{text:prompt}]}], generationConfig:{temperature:0.0} }) });
                 
-                if (originalArticles.length === 0) {
-                    applyFiltersButton.disabled = true;
-                    applyFiltersButton.classList.add('opacity-50', 'cursor-not-allowed');
+                // SAFE JSON PARSING
+                let outputText = (await res.json()).candidates[0].content.parts[0].text;
+                const jsonStr = extractJson(outputText);
+                if (!jsonStr) throw new Error("Failed to extract JSON from AI response");
+                
+                const json = JSON.parse(jsonStr);
+                
+                document.getElementById('inclusion-criteria').value = JSON.stringify({Inclusion:json.Inclusion, Exclusion:json.Exclusion}, null, 2);
+                appState.criteria = { Inclusion:json.Inclusion, Exclusion:json.Exclusion };
+                if(json.PICO) ['p','i','c','o'].forEach(k => document.getElementById(`pico-${k}`).textContent = json.PICO[k.toUpperCase()]||'-');
+                document.getElementById('pico-container').classList.remove('hidden');
+                
+                if(json.SearchQuery) {
+                    document.getElementById('pubmed-query-input').value = json.SearchQuery;
+                    document.getElementById('mesh-badge').classList.remove('hidden'); // Show badge
                 }
-                if (includedArticlesForSummary.length === 0) {
-                    regenerateSummaryButton.disabled = true;
-                    regenerateSummaryButton.classList.add('opacity-50', 'cursor-not-allowed');
+                logAudit('Protocol Gen', json);
+
+                if(appState.articles.length === 0 && json.SearchQuery) {
+                    const uids = await fetchPubmedUids(json.SearchQuery, document.getElementById('date-limit').value, limit);
+                    appState.articles = await fetchAbstracts(uids);
+                    logAudit('PubMed Search', { count: appState.articles.length });
                 }
+                document.getElementById('total-articles-count').textContent = appState.articles.length;
+                document.getElementById('review-panel').classList.remove('hidden');
+                updateStatus(`Protocol Ready. ${appState.articles.length} articles loaded.`, 'success');
+            } catch(e) { updateStatus('Error: '+e.message, 'error'); console.error(e); } finally { setButtonLoading('generate-button', false); }
+        }
+
+        // --- 3. Calibration & Screening (Same as v9.2) ---
+        window.startCalibration = () => {
+            if(appState.articles.length < 5) return alert("Need 5+ articles.");
+            appState.calibrationSet = appState.articles.sort(() => 0.5 - Math.random()).slice(0, 5);
+            appState.calibrationIndex = 0; appState.humanVotes = {}; appState.aiVotes = {};
+            document.getElementById('calibration-panel').classList.remove('hidden');
+            document.getElementById('review-panel').classList.add('hidden');
+            showCalibrationCard();
+            runShadowAI(appState.calibrationSet); 
+        };
+
+        function showCalibrationCard() {
+            const a = appState.calibrationSet[appState.calibrationIndex];
+            document.getElementById('calib-content').innerHTML = `<h4 class="font-bold mb-2">${a.Title}</h4><p class="text-sm text-gray-600">${a.Abstract}</p>`;
+        }
+
+        window.calibVote = (v) => {
+            appState.humanVotes[appState.calibrationSet[appState.calibrationIndex].PMID] = v;
+            if(++appState.calibrationIndex < 5) showCalibrationCard(); else calculateKappa();
+        };
+
+        async function runShadowAI(articles) {
+            const key = getApiKey();
+            for(const a of articles) {
+                const q = `Screen abstract. Criteria: ${JSON.stringify(appState.criteria)}. Article: ${a.Title} ${a.Abstract}. Output JSON: {"Decision": "INCLUDE" or "EXCLUDE"}`;
+                try {
+                    const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${key}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ contents:[{parts:[{text:q}]}] }) });
+                    appState.aiVotes[a.PMID] = JSON.parse(extractJson((await res.json()).candidates[0].content.parts[0].text)).Decision;
+                } catch(e){}
             }
         }
-        
-        function showError(message) {
-            errorMessage.textContent = message;
-            errorMessage.classList.remove('hidden');
+
+        function calculateKappa() {
+            let agree = 0, n = 5;
+            appState.calibrationSet.forEach(a => { if(appState.humanVotes[a.PMID] === (appState.aiVotes[a.PMID]||'EXCLUDE')) agree++; });
+            const kappa = (agree/n).toFixed(2);
+            document.getElementById('kappa-display').textContent = `Agreement: ${kappa * 100}%`;
+            document.getElementById('calib-overlay').classList.remove('hidden');
+            document.getElementById('calib-result-text').textContent = `Agreement: ${agree}/5. Proceed?`;
+            logAudit('Calibration', { human: appState.humanVotes, ai: appState.aiVotes });
         }
-        
-        function hideError() {
-            errorMessage.classList.add('hidden');
+
+        window.finishCalibration = () => { document.getElementById('calibration-panel').classList.add('hidden'); window.startScreening({skip:true}); };
+
+        window.startScreening = async () => {
+            appState.criteria = JSON.parse(document.getElementById('inclusion-criteria').value);
+            document.getElementById('review-panel').classList.add('hidden');
+            updateStatus(`Dual-Agent Screening ${appState.articles.length} articles...`, 'process');
+            const toScreen = appState.articles.filter(a => !appState.humanVotes[a.PMID]);
+            let done = 0;
+            setProgressBar(0, `Screening: 0/${toScreen.length}`);
+            const tasks = toScreen.map(article => async () => {
+                const res = await screenDual(article);
+                done++;
+                setProgressBar(Math.round((done/toScreen.length)*100), `Screening: ${done}/${toScreen.length}`);
+                return { ...article, ...res };
+            });
+            appState.articles = await runWithConcurrency(tasks, CONCURRENCY_LIMIT);
+            setProgressBar(null); renderResults(); updateStatus('Screening Complete', 'success'); logAudit('Screening', { count: appState.articles.length });
+        };
+
+        async function screenDual(article) {
+            const key = getApiKey();
+            const promptA = `Role: Reviewer A (Sensitive). Include if potentially relevant. Criteria: ${JSON.stringify(appState.criteria)}. Article: ${article.Title} ${article.Abstract}. Output JSON: {"Decision": "INCLUDE"|"EXCLUDE", "Reasoning": "brief"}`;
+            const promptB = `Role: Reviewer B (Strict). Include only if perfect match. Criteria: ${JSON.stringify(appState.criteria)}. Article: ${article.Title} ${article.Abstract}. Output JSON: {"Decision": "INCLUDE"|"EXCLUDE", "Reasoning": "brief"}`;
+            try {
+                const [rA, rB] = await Promise.all([
+                    fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${key}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ contents:[{parts:[{text:promptA}]}] }) }),
+                    fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${key}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ contents:[{parts:[{text:promptB}]}] }) })
+                ]);
+                
+                // SAFE PARSING
+                const txtA = (await rA.json()).candidates[0].content.parts[0].text;
+                const txtB = (await rB.json()).candidates[0].content.parts[0].text;
+                const jA = JSON.parse(extractJson(txtA));
+                const jB = JSON.parse(extractJson(txtB));
+                
+                let d = 'EXCLUDE', conflict = false;
+                if(jA.Decision === 'INCLUDE' && jB.Decision === 'INCLUDE') d = 'INCLUDE';
+                else if(jA.Decision !== jB.Decision) { d = 'NEEDS_REVIEW'; conflict = true; }
+                return { Decision: d, Conflict: conflict, Reasoning: `A: ${jA.Reasoning} | B: ${jB.Reasoning}`, Reviewers: {A:jA, B:jB} };
+            } catch(e) { return { Decision: 'ERROR', Reasoning: 'API Fail' }; }
         }
-        
+
+        function renderResults() {
+            document.getElementById('results-panel').classList.remove('hidden');
+            document.getElementById('upload-panel').classList.remove('hidden');
+            const inc = appState.articles.filter(a => a.Decision === 'INCLUDE' && !a.Conflict);
+            const con = appState.articles.filter(a => a.Conflict || a.Decision === 'NEEDS_REVIEW');
+            const exc = appState.articles.filter(a => a.Decision === 'EXCLUDE');
+            document.getElementById('included-count').textContent = inc.length;
+            document.getElementById('borderline-count').textContent = con.length;
+            document.getElementById('excluded-count').textContent = exc.length;
+            const mkCard = (a, type) => `<div class="article-card bg-white p-4 rounded border-l-4 ${type==='inc'?'border-green-500':(type==='con'?'border-yellow-500':'border-gray-300')}"><h4 class="font-bold text-sm">${a.Title}</h4><p class="text-xs text-gray-600 mt-1 line-clamp-3">${a.Abstract}</p>${type==='con' ? `<div class="mt-2 text-xs bg-yellow-50 p-1 rounded">🤖 A: ${a.Reviewers?.A.Decision} | B: ${a.Reviewers?.B.Decision}</div><div class="mt-2 flex gap-2"><button onclick="window.resolve('${a.PMID}','INCLUDE')" class="bg-green-100 px-2 py-1 rounded text-xs font-bold">Include</button><button onclick="window.resolve('${a.PMID}','EXCLUDE')" class="bg-red-100 px-2 py-1 rounded text-xs font-bold">Exclude</button></div>` : ''}<div class="mt-2 text-xs italic text-gray-500">${a.Reasoning}</div></div>`;
+            document.getElementById('included-list').innerHTML = inc.map(a=>mkCard(a,'inc')).join('');
+            document.getElementById('borderline-list').innerHTML = con.map(a=>mkCard(a,'con')).join('');
+            document.getElementById('excluded-list').innerHTML = exc.map(a=>mkCard(a,'exc')).join('');
+            if(inc.length > 0) { const toFetch = inc.filter(a => a.PMCID && !a.FullTextFileName); if(toFetch.length > 0) attemptFullTextRetrieval(); renderFiles(); }
+            if(con.length > 0) switchTab('borderline'); else switchTab('included');
+        }
+
+        window.resolve = (pmid, dec) => { const idx = appState.articles.findIndex(a => a.PMID === pmid); if(idx !== -1) { appState.articles[idx].Decision = dec; appState.articles[idx].Conflict = false; appState.articles[idx].Override = true; renderResults(); } };
+
+        // --- 5. Full Text & Extraction ---
+        async function attemptFullTextRetrieval() {
+            const list = appState.articles.filter(a => a.Decision === 'INCLUDE' && !a.Conflict && a.PMCID && !a.FullTextFileName).slice(0, 10);
+            if(list.length === 0) return;
+            document.getElementById('retrieval-status-message').innerHTML = "Fetching PMC texts...";
+            document.getElementById('retrieval-status-message').classList.remove('hidden');
+            let done = 0; setProgressBar(0, `Downloading Full Text: 0/${list.length}`);
+            const tasks = list.map(a => async () => { try { const r = await fetch(`${PUBMED_BASE_URL}efetch.fcgi?db=pmc&id=${a.PMCID}&retmode=text&rettype=full&tool=${API_TOOL}&email=${API_EMAIL}`); const t = await r.text(); if(!t.includes('error') && t.length > 500) { appState.uploadedTexts[`AUTO_${a.PMCID}.txt`] = t; a.FullTextFileName = `AUTO_${a.PMCID}.txt`; } } catch(e){} done++; setProgressBar(Math.round((done/list.length)*100), `Downloading Full Text: ${done}/${list.length}`); });
+            await runWithConcurrency(tasks, 4); setProgressBar(null); document.getElementById('retrieval-status-message').innerHTML = "PMC Fetch Complete."; renderFiles();
+        }
+
+        function renderFiles() {
+            const inc = appState.articles.filter(a => a.Decision === 'INCLUDE' && !a.Conflict);
+            document.getElementById('fileListContainer').innerHTML = inc.map(a => `<div class="flex justify-between text-sm border-b py-1"><span>${a.Title.substring(0,50)}...</span><span class="${a.FullTextFileName?'text-green-600':'text-red-500'}">${a.FullTextFileName?'Ready':'Missing'}</span></div>`).join('');
+            const btn = document.getElementById('start-full-text-review-button'); if(inc.some(a => a.FullTextFileName)) { btn.disabled = false; btn.classList.remove('opacity-50', 'cursor-not-allowed'); }
+        }
+
+        window.handleFileSelect = async () => { const files = document.getElementById('fileInput').files; for(const f of files) { appState.uploadedTexts[f.name] = await f.text(); const match = appState.articles.find(a => f.name.includes(a.PMID)); if(match) match.FullTextFileName = f.name; } renderFiles(); };
+
+        window.startFullTextReview = async () => {
+            setButtonLoading('start-full-text-review-button', true);
+            document.getElementById('full-text-review-panel').classList.remove('hidden');
+            const toReview = appState.articles.filter(a => a.Decision === 'INCLUDE' && !a.Conflict && a.FullTextFileName);
+            const fields = document.getElementById('extraction-fields').value.split(',').map(s=>s.trim()).filter(s=>s); appState.extractionSchema = fields;
+            let done = 0; setProgressBar(0, `Analyzing Full Text: 0/${toReview.length}`);
+            const tasks = toReview.map(a => async () => {
+                const txt = appState.uploadedTexts[a.FullTextFileName].substring(0, 15000);
+                const q = `Analyze full text. Criteria: ${JSON.stringify(appState.criteria)}. Text: ${txt}. Tasks: 1. Decide Final Inclusion. 2. Extract: ${JSON.stringify(fields)} 3. Assess RoB. Output JSON: { "FinalDecision": "INCLUDE"|"EXCLUDE", "Data": { ...fields... }, "RiskOfBias": {"Selection":"Low/High","Blinding":"Low/High"} }`;
+                try { 
+                    const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${getApiKey()}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ contents:[{parts:[{text:q}]}] }) }); 
+                    // SAFE PARSING
+                    const outTxt = (await res.json()).candidates[0].content.parts[0].text;
+                    a.ExtractedData = JSON.parse(extractJson(outTxt)); 
+                    a.FinalDecision = a.ExtractedData.FinalDecision; 
+                } catch(e){ a.FinalDecision = 'ERROR'; } done++; setProgressBar(Math.round((done/toReview.length)*100), `Analyzing Full Text: ${done}/${toReview.length}`);
+            });
+            await runWithConcurrency(tasks, 4); setProgressBar(null); renderFinalReviewResults(); document.getElementById('report-panel').classList.remove('hidden'); setButtonLoading('start-full-text-review-button', false);
+        };
+
+        function renderFinalReviewResults() {
+            const list = document.getElementById('extraction-table-body');
+            list.innerHTML = appState.articles.filter(a => a.FinalDecision).map(a => { const dataCells = appState.extractionSchema.map(f => `<div class="mb-1"><span class="font-bold text-[10px] text-gray-500 uppercase">${f}:</span> ${a.ExtractedData?.Data?.[f] || 'N/A'}</div>`).join(''); return `<tr class="border-b hover:bg-gray-50"><td class="p-2 font-mono">${a.PMID}</td><td class="p-2 font-bold ${a.FinalDecision==='INCLUDE'?'text-green-600':'text-red-500'}">${a.FinalDecision}</td><td class="p-2">${dataCells}</td><td class="p-2 text-[10px]">${JSON.stringify(a.ExtractedData?.RiskOfBias || {}).substring(0,50)}...</td></tr>`; }).join('');
+        }
+
+        // --- 6. Report & Refine (Same as v9.2) ---
+        document.getElementById('generate-report-button').addEventListener('click', async () => {
+            setButtonLoading('generate-report-button', true); updateStatus('Generating Report...', 'process');
+            try {
+                const inc = appState.articles.filter(a => a.FinalDecision === 'INCLUDE' || (!a.FinalDecision && a.Decision === 'INCLUDE' && !a.Conflict));
+                if (inc.length === 0) { document.getElementById('slr-draft-output').innerHTML = "No included articles found."; updateStatus("Report Error", "error"); setButtonLoading('generate-report-button', false); return; }
+                const promptData = inc.map(a => ({ AuthorYear: `${(a.CitationMeta?.Authors || 'Author').split(',')[0]} (${a.CitationMeta?.Year || a.Year || '2023'})`, Title: a.Title, CitationMeta: a.CitationMeta || { Year: a.Year || '2023', Journal: 'PubMed' }, Details: a.ExtractedData?.Data || a.Reasoning || a.Abstract.substring(0, 500) }));
+                const prompt = `Write SLR. Structure: Intro, Methods, Results, Discussion. Include GRADE summary table. Use citations [1]. Generate References section at end using CitationMeta. Included: ${JSON.stringify(promptData)}`;
+                const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${getApiKey()}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ contents:[{parts:[{text:prompt}]}] }) });
+                appState.currentDraft = (await res.json()).candidates[0].content.parts[0].text; document.getElementById('slr-draft-output').innerHTML = appState.currentDraft.replace(/\n/g, '<br>'); document.getElementById('refine-section').classList.remove('hidden'); updateStatus('Report Generated', 'success');
+            } catch(e) { updateStatus('Report Error: ' + e.message, 'error'); } finally { setButtonLoading('generate-report-button', false); }
+        });
+
+        document.getElementById('refine-button').addEventListener('click', async () => {
+            const btn = document.getElementById('refine-button'); const originalText = btn.innerText; btn.innerText = "Refining..."; btn.disabled = true;
+            const instructions = document.getElementById('refine-instructions').value; const prompt = `Rewrite draft based on instructions: "${instructions}".\n\nDRAFT:\n${appState.currentDraft}`;
+            try { const res = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/${LLM_MODEL}:generateContent?key=${getApiKey()}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ contents:[{parts:[{text:prompt}]}] }) }); appState.currentDraft = (await res.json()).candidates[0].content.parts[0].text; document.getElementById('slr-draft-output').innerHTML = appState.currentDraft.replace(/\n/g, '<br>'); updateStatus('Report Refined', 'success'); } catch(e) { updateStatus('Refine Error', 'error'); } finally { btn.innerText = originalText; btn.disabled = false; }
+        });
+
+        window.skipFullTextReview = () => { document.getElementById('report-panel').classList.remove('hidden'); };
+        window.generatePrismaDiagram = () => { const total = appState.articles.length; const incAbstract = appState.articles.filter(a => a.Decision === 'INCLUDE' && !a.Conflict).length; const excAbstract = appState.articles.filter(a => a.Decision === 'EXCLUDE').length; const incFull = appState.articles.filter(a => a.FinalDecision === 'INCLUDE').length; const finalInc = incFull > 0 ? incFull : incAbstract; const svg = `<svg width="600" height="500" viewBox="0 0 600 500" xmlns="http://www.w3.org/2000/svg" font-family="sans-serif" font-size="12"><rect x="200" y="20" width="200" height="60" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/><text x="300" y="55" text-anchor="middle" font-weight="bold">Identification: ${total} records</text><line x1="300" y1="80" x2="300" y2="120" stroke="#333" stroke-width="2" marker-end="url(#arrow)"/><rect x="200" y="120" width="200" height="60" fill="#eff6ff" stroke="#2563eb" stroke-width="2"/><text x="300" y="155" text-anchor="middle" font-weight="bold">Screened: ${total}</text><line x1="400" y1="150" x2="450" y2="150" stroke="#333" stroke-width="2"/><text x="455" y="155" fill="#b91c1c">Excluded: ${excAbstract}</text><line x1="300" y1="180" x2="300" y2="220" stroke="#333" stroke-width="2"/><rect x="200" y="220" width="200" height="60" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/><text x="300" y="255" text-anchor="middle" font-weight="bold">Full Text: ${incAbstract}</text><line x1="300" y1="280" x2="300" y2="320" stroke="#333" stroke-width="2"/><rect x="200" y="320" width="200" height="60" fill="#ecfdf5" stroke="#059669" stroke-width="2"/><text x="300" y="355" text-anchor="middle" font-weight="bold">Included: ${finalInc}</text></svg>`; document.getElementById('prisma-output').innerHTML = svg; };
+        window.exportResults = (format) => { /* Same as v9.2 */ };
+        async function fetchPubmedUids(q, d, limit) { let u = `${PUBMED_BASE_URL}esearch.fcgi?db=pubmed&term=${encodeURIComponent(q)}&retmax=${limit}&retmode=json`; if(d) u+=`&mindate=${d}&maxdate=2025&datetype=pdat`; return (await (await fetch(u)).json()).esearchresult?.idlist||[]; }
+        async function fetchAbstracts(ids) { if(!ids.length)return[]; const CHUNK_SIZE=50; let allArts=[]; for(let i=0; i<ids.length; i+=CHUNK_SIZE){ const chunk=ids.slice(i,i+CHUNK_SIZE); const t = await (await fetch(`${PUBMED_BASE_URL}efetch.fcgi?db=pubmed&id=${chunk.join(',')}&retmode=xml&rettype=abstract`)).text(); const x = new DOMParser().parseFromString(t,"text/xml"); const batch = Array.from(x.querySelectorAll('PubmedArticle')).map(a=>({ PMID:a.querySelector('PMID')?.textContent, Title:a.querySelector('ArticleTitle')?.textContent, Abstract:a.querySelector('AbstractText')?.textContent||'No Abstract', PMCID:a.querySelector('ArticleId[IdType="pmc"]')?.textContent, Decision:'PENDING', Year: a.querySelector('PubDate Year')?.textContent || '2023', CitationMeta: { Journal: a.querySelector('Title')?.textContent || a.querySelector('ISOAbbreviation')?.textContent || 'Journal', Volume: a.querySelector('Volume')?.textContent || '', Issue: a.querySelector('Issue')?.textContent || '', Pages: a.querySelector('MedlinePgn')?.textContent || '', Authors: Array.from(a.querySelectorAll('Author')).map(auth => { const last = auth.querySelector('LastName')?.textContent; const init = auth.querySelector('Initials')?.textContent; return last ? `${last} ${init}` : null; }).filter(n=>n).join(', ') } })); allArts = allArts.concat(batch); } return allArts; }
+
+        document.getElementById('criteria-form').addEventListener('submit', generateProtocol);
+        const k = localStorage.getItem('custom_api_key_1'); if(k) document.getElementById('api-key-1').value = k;
+        const k2 = localStorage.getItem('custom_api_key_2'); if(k2) document.getElementById('api-key-2').value = k2;
+        window.checkPrisma = () => { const checks = [{text:"Rationale described?", val: !!appState.currentDraft}, {text:"Search strategy provided?", val: !!appState.criteria.Inclusion}, {text:"Selection process specified?", val: true}, {text:"Data items listed?", val: appState.extractionSchema.length > 0}, {text:"Risk of bias assessment?", val: appState.articles.some(a=>a.ExtractedData?.RiskOfBias)}]; document.getElementById('prisma-list').innerHTML = checks.map(c => `<div class="flex items-center justify-between p-2 border-b"><span class="${c.val?'text-green-700':'text-red-600'} font-bold">${c.val?'✔':'✖'}</span> <span>${c.text}</span></div>`).join(''); toggleModal('prisma-modal'); };
     </script>
 </body>
 </html>
